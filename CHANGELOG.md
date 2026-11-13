@@ -1,5 +1,6 @@
 # Änderungen
 
+- **V1.7** Sichtbare Tieferlegung im Look Serie wieder entfernt, Testguthaben auf 0 gesetzt
 - **V1.6** Motorsound je nach Teilen sportlicher (Sport-Endschalldämpfer: tiefer und Knallen, Krümmer: rauer, Turbo: Pfeifen und Ausblasen), Tieferlegung im Look Serie sichtbar, Testguthaben entfernt
 - **V1.5** Look-Auswahl (Serie, Sport, Tiefer, Show) statt getrennter Felgen- und Scheibenwahl, jeder Look ändert das Bild sichtbar
 - **V1.4** Sicherung und Wiederherstellung des Fortschritts (Profil)

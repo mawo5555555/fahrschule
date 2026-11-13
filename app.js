@@ -4,7 +4,8 @@ const DEF={st:{lucky:0,misc:0},diary:[],tts:false,pts:0,xp:0,own:[],jobs:[],days
 let S=Object.assign({},DEF);
 try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem('fs2')||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem('fs2',JSON.stringify(S))}catch(e){}};
-const VERSION='1.6';
+if(S.test){S.pts=0;delete S.test;save()}
+const VERSION='1.7';
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const vib=n=>{try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}};
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
@@ -64,7 +65,7 @@ function visStage(){return curLook()}
 function lookRim(){const l=curLook();return l===0?0:(l===3?3:(ownedRim()[0]||0))}
 function lookTint(){return curLook()===0?0:tintMax()}
 function setLook(l){cfg().look=l;save();garage()}
-function stageFile(n){if(n===0){if(has('fahr2'))return 'stage0_low2';if(has('fahr'))return 'stage0_low1'}return 'stage'+n}
+function stageFile(n){return 'stage'+n}
 function mount3d(v){const m=document.querySelector('.car3d');if(!m)return;
   if(v!=='under'){const n=visStage(),im=new Image();im.onload=()=>{if(m.isConnected){m.innerHTML='<img src="img/'+stageFile(n)+'.png" alt="Twingo" style="width:100%;display:block;border-radius:20px">'}};im.onerror=()=>mount3dReal(v);im.src='img/'+stageFile(n)+'.png';return}
   mount3dReal(v)}
@@ -269,7 +270,7 @@ function garage(){
   else if(GT==='under')stage=`<div class="stage"><div class="tag">Hebebühne</div><div id="imgun" class="ph ph-tall"></div></div><div class="m" style="margin:6px 4px">Auf der Hebebühne siehst du Auspuffanlage, Motor und Getriebe. Teile kaufst du unten unter Motor.</div>`;
   else stage=`<div class="stage" style="padding:12px"><div id="imgin" class="ph"></div></div><button class="btn" onclick="playBeat()">Sound testen</button>`;
   const seg=`<div class="seg" style="margin:8px 0">${[['out','Außen'],['under','Unterboden'],['in','Innenraum']].map(x=>`<button class="${GT===x[0]?'on':''}" onclick="GT='${x[0]}';garage()">${x[1]}</button>`).join('')}</div>`;
-  const pickers=GT==='out'?`<div class="card"><b>Look</b><div class="m" style="margin:2px 0 8px">Jeder Look schaltet sich durch Tuning frei und ändert das Bild.</div><div class="row" style="flex-wrap:wrap">${LOOKS.map((n,i)=>{const ok=i<=maxLook();return `<button class="chip" ${ok?`onclick="setLook(${i})"`:'disabled'} style="color:${ok?'var(--t)':'var(--m)'};${curLook()===i?'border-color:var(--g);background:rgba(124,255,74,.15)':''}${ok?'':';opacity:.5'}">${n}${ok?'':' 🔒'}</button>`}).join('')}</div><div class="m" style="margin-top:8px">${['Serie: Stahlfelgen, mit Fahrwerk sichtbar tiefer.','Sport: Alufelgen und getönte Scheiben (Felgen oder Tönung kaufen).','Tiefer: tiefer gelegt mit Alufelgen (Gewindefahrwerk plus Felgen oder Tönung).','Show: schwarz-rote Tiefbett-Felgen, tiefer, Unterbodenlicht (Tiefbett-Felgen plus Gewindefahrwerk).'][curLook()]}</div></div>`:'';
+  const pickers=GT==='out'?`<div class="card"><b>Look</b><div class="m" style="margin:2px 0 8px">Jeder Look schaltet sich durch Tuning frei und ändert das Bild.</div><div class="row" style="flex-wrap:wrap">${LOOKS.map((n,i)=>{const ok=i<=maxLook();return `<button class="chip" ${ok?`onclick="setLook(${i})"`:'disabled'} style="color:${ok?'var(--t)':'var(--m)'};${curLook()===i?'border-color:var(--g);background:rgba(124,255,74,.15)':''}${ok?'':';opacity:.5'}">${n}${ok?'':' 🔒'}</button>`}).join('')}</div><div class="m" style="margin-top:8px">${['Serie: Stahlfelgen, Originalhöhe.','Sport: Alufelgen und getönte Scheiben (Felgen oder Tönung kaufen).','Tiefer: tiefer gelegt mit Alufelgen (Gewindefahrwerk plus Felgen oder Tönung).','Show: schwarz-rote Tiefbett-Felgen, tiefer, Unterbodenlicht (Tiefbett-Felgen plus Gewindefahrwerk).'][curLook()]}</div></div>`:'';
   $('#app').innerHTML=`<div class="top"><h1 style="margin:0">Garage</h1><div class="chip">⚙ ${S.pts}</div></div>${seg}${stage}${pickers}
   <div class="card gauges">${gauge('Leistung',s.ps,140,'PS')}${gauge('Drehmoment',s.nm,150,'Nm')}<div style="align-self:center"><div class="m">Gewicht</div><b>${s.kg} kg</b><div class="m" style="margin-top:6px">Tiefer</div><b>${s.low*5} mm</b><div class="m" style="margin-top:6px">0–100</div><b>${s.t} s</b></div></div>
   ${[...new Set(PARTS.map(p=>p.cat))].map(c=>`<h2>${c}</h2><div class="grid">${PARTS.filter(p=>p.cat===c).map(partCard).join('')}</div>`).join('')}`;if(GT==='out')mount3d('out');if(GT==='under')loadImg('#imgun',[2,1,0].filter(k=>k<=underStage()).map(k=>'img/under'+k+'.png'),null,'max-height:68vh;width:auto;max-width:100%;margin:0 auto',()=>{const m=document.querySelector('#imgun');if(m){m.className='';m.innerHTML=car();mount3dReal('under')}});if(GT==='in'){const n=Math.min(3,audN());loadImg('#imgin',[3,2,1,0].filter(k=>k<=n).map(k=>'img/dash'+k+'.png').concat(['img/dash_real.jpg']),null,null,()=>{const m=document.querySelector('#imgin');if(m){m.className='';m.innerHTML=innerSVG()}})}
