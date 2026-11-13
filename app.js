@@ -4,7 +4,7 @@ const DEF={st:{lucky:0,misc:0},diary:[],tts:false,pts:0,xp:0,own:[],jobs:[],days
 let S=Object.assign({},DEF);
 try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem('fs2')||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem('fs2',JSON.stringify(S))}catch(e){}};
-const VERSION='1.4';
+const VERSION='1.5';
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const vib=n=>{try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}};
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
@@ -57,12 +57,18 @@ const cfg=()=>{S.cfg=S.cfg||{rim:0,tint:0};if(S.cfg.rim&&!ownedRim().includes(S.
 const tintMax=()=>Math.max(0,...PARTS.filter(p=>p.tint&&has(p.id)).map(p=>p.tint));
 const audN=()=>PARTS.filter(p=>p.aud&&has(p.id)).length;
 const car=()=>'<div class="car3d ph"></div>';
-function visStage(){const s=stats(),c=cfg(),rim=c.rim||0,tint=Math.min(c.tint||0,tintMax()),low=s.low>=5;if(!rim&&!tint)return 0;if(rim===3&&low)return 3;if(low&&rim>0)return 2;return 1}
+const LOOKS=['Serie','Sport','Tiefer','Show'];
+function maxLook(){const o=ownedRim().length>0||tintMax()>0,low=has('fahr');return has('felg3')&&low?3:(low&&o?2:(o?1:0))}
+function curLook(){const c=cfg();const m=maxLook();return c.look==null?m:Math.min(c.look,m)}
+function visStage(){return curLook()}
+function lookRim(){const l=curLook();return l===0?0:(l===3?3:(ownedRim()[0]||0))}
+function lookTint(){return curLook()===0?0:tintMax()}
+function setLook(l){cfg().look=l;save();garage()}
 function mount3d(v){const m=document.querySelector('.car3d');if(!m)return;
   if(v!=='under'){const n=visStage(),im=new Image();im.onload=()=>{if(m.isConnected){m.innerHTML='<img src="img/stage'+n+'.png" alt="Twingo" style="width:100%;display:block;border-radius:20px">'}};im.onerror=()=>mount3dReal(v);im.src='img/stage'+n+'.png';return}
   mount3dReal(v)}
 function mount3dReal(v){const m=document.querySelector('.car3d');if(!m||!window.Twingo3D)return;const s=stats(),c=cfg();
-  try{Twingo3D.mount(m,v||'out',{rim:c.rim||0,tint:Math.min(c.tint||0,tintMax()),low:Math.min(.05,s.low*.005),ps:s.ps,e2:has('ausp'),e1:has('kruemm'),tb:has('turbo'),ch:has('chip'),bk:has('bremse'),spin:false})}catch(e){m.innerHTML='<div class="m" style="padding:30px;text-align:center">3D-Ansicht nicht verfügbar (WebGL fehlt). Die App funktioniert sonst normal.</div>'}}
+  try{Twingo3D.mount(m,v||'out',{rim:lookRim(),tint:lookTint(),low:Math.min(.05,s.low*.005)*0+Math.min(.05,s.low*.005),ps:s.ps,e2:has('ausp'),e1:has('kruemm'),tb:has('turbo'),ch:has('chip'),bk:has('bremse'),spin:false})}catch(e){m.innerHTML='<div class="m" style="padding:30px;text-align:center">3D-Ansicht nicht verfügbar (WebGL fehlt). Die App funktioniert sonst normal.</div>'}}
 function engineGraph(A,dest,o){
   const t0=A.currentTime+.03,master=A.createGain();master.gain.value=.9;
   const comp=A.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=12;comp.ratio.value=5;master.connect(comp);comp.connect(dest);
@@ -251,8 +257,7 @@ function garage(){
   else if(GT==='under')stage=`<div class="stage"><div class="tag">Hebebühne</div><div id="imgun" class="ph ph-tall"></div></div><div class="m" style="margin:6px 4px">Auf der Hebebühne siehst du Auspuffanlage, Motor und Getriebe. Teile kaufst du unten unter Motor.</div>`;
   else stage=`<div class="stage" style="padding:12px"><div id="imgin" class="ph"></div></div><button class="btn" onclick="playBeat()">Sound testen</button>`;
   const seg=`<div class="seg" style="margin:8px 0">${[['out','Außen'],['under','Unterboden'],['in','Innenraum']].map(x=>`<button class="${GT===x[0]?'on':''}" onclick="GT='${x[0]}';garage()">${x[1]}</button>`).join('')}</div>`;
-  const pickers=GT==='out'?`<div class="card"><div class="m" style="margin-bottom:6px">Bild zeigt Stufe ${visStage()+1} von 4 und ändert sich mit deiner Auswahl.</div><b>Felgen</b><div class="row" style="margin:8px 0;flex-wrap:wrap"><button class="chip" style="color:var(--t);${!c.rim?'border-color:var(--g)':''}" onclick="setCfg('rim',0)">Stahl</button>${rims.map(r=>`<button class="chip" style="color:var(--t);${c.rim===r?'border-color:var(--g)':''}" onclick="setCfg('rim',${r})">${PARTS.find(p=>p.rim===r).n}</button>`).join('')}</div>
-  <b>Scheiben</b><div class="row" style="margin:8px 0"><button class="chip" style="color:var(--t);${!c.tint?'border-color:var(--g)':''}" onclick="setCfg('tint',0)">Klar</button>${[1,2,3].filter(t=>t<=tm).map(t=>`<button class="chip" style="color:var(--t);${c.tint===t?'border-color:var(--g)':''}" onclick="setCfg('tint',${t})">Stufe ${t}</button>`).join('')}</div></div>`:'';
+  const pickers=GT==='out'?`<div class="card"><b>Look</b><div class="m" style="margin:2px 0 8px">Jeder Look schaltet sich durch Tuning frei und ändert das Bild.</div><div class="row" style="flex-wrap:wrap">${LOOKS.map((n,i)=>{const ok=i<=maxLook();return `<button class="chip" ${ok?`onclick="setLook(${i})"`:'disabled'} style="color:${ok?'var(--t)':'var(--m)'};${curLook()===i?'border-color:var(--g);background:rgba(124,255,74,.15)':''}${ok?'':';opacity:.5'}">${n}${ok?'':' 🔒'}</button>`}).join('')}</div><div class="m" style="margin-top:8px">${['Serie: Stahlfelgen, Originalhöhe.','Sport: Alufelgen und getönte Scheiben (Felgen oder Tönung kaufen).','Tiefer: tiefer gelegt mit Alufelgen (Gewindefahrwerk plus Felgen oder Tönung).','Show: schwarz-rote Tiefbett-Felgen, tiefer, Unterbodenlicht (Tiefbett-Felgen plus Gewindefahrwerk).'][curLook()]}</div></div>`:'';
   $('#app').innerHTML=`<div class="top"><h1 style="margin:0">Garage</h1><div class="chip">⚙ ${S.pts}</div></div>${seg}${stage}${pickers}
   <div class="card gauges">${gauge('Leistung',s.ps,140,'PS')}${gauge('Drehmoment',s.nm,150,'Nm')}<div style="align-self:center"><div class="m">Gewicht</div><b>${s.kg} kg</b><div class="m" style="margin-top:6px">Tiefer</div><b>${s.low*5} mm</b><div class="m" style="margin-top:6px">0–100</div><b>${s.t} s</b></div></div>
   ${[...new Set(PARTS.map(p=>p.cat))].map(c=>`<h2>${c}</h2><div class="grid">${PARTS.filter(p=>p.cat===c).map(partCard).join('')}</div>`).join('')}`;if(GT==='out')mount3d('out');if(GT==='under')loadImg('#imgun',[2,1,0].filter(k=>k<=underStage()).map(k=>'img/under'+k+'.png'),null,'max-height:68vh;width:auto;max-width:100%;margin:0 auto',()=>{const m=document.querySelector('#imgun');if(m){m.className='';m.innerHTML=car();mount3dReal('under')}});if(GT==='in'){const n=Math.min(3,audN());loadImg('#imgin',[3,2,1,0].filter(k=>k<=n).map(k=>'img/dash'+k+'.png').concat(['img/dash_real.jpg']),null,null,()=>{const m=document.querySelector('#imgin');if(m){m.className='';m.innerHTML=innerSVG()}})}
@@ -266,7 +271,7 @@ function partCard(p){
   const eff=[p.ps?'+'+p.ps+' PS':'',p.nm?'+'+p.nm+' Nm':'',p.low?'−'+p.low*5+' mm':''].filter(Boolean).join(' · ');
   return `<div class="part ${own?'own':''} ${can?'':'lock'}"><b>${p.n}</b><small>${p.d}</small>${eff?`<div class="eff">${eff}</div>`:''}${btn}</div>`;
 }
-function buy(id){const p=PARTS.find(x=>x.id===id);if(!okp(p))return;if(p.cost){if(S.pts<p.cost)return;S.pts-=p.cost}S.own.push(id);if(p.rim||p.tint){const c=cfg();if(p.rim)c.rim=p.rim;if(p.tint)c.tint=p.tint}save();toast(p.n+' verbaut');garage()}
+function buy(id){const p=PARTS.find(x=>x.id===id);if(!okp(p))return;if(p.cost){if(S.pts<p.cost)return;S.pts-=p.cost}const before=maxLook();S.own.push(id);if(maxLook()>before)cfg().look=maxLook();save();toast(p.n+' verbaut');garage()}
 /* WERKSTATT */
 const JOBS=[
 {id:'reifen',n:'Reifenwechsel',cost:0,need:10,d:'Sommer auf Sportreifen. Reihenfolge ist wichtig.',steps:['Auto sichern: Handbremse, ersten Gang einlegen','Radmuttern am Boden eine halbe Umdrehung lösen','Wagenheber am vorgesehenen Ansatzpunkt anheben','Radmuttern ganz abschrauben, Rad abnehmen','Neues Rad aufsetzen, Muttern über Kreuz handfest','Wagen ablassen, Muttern über Kreuz mit Drehmoment anziehen','Reifendruck bei kaltem Reifen prüfen','Nach ca. 50 km Radmuttern nachziehen']},
@@ -275,7 +280,7 @@ const JOBS=[
 let W=null;
 function werk(){
   if(W)return job();const n=Object.values(S.ans).filter(v=>v===1).length;
-  $('#app').innerHTML=`<h1>Werkstatt</h1><div class="m">Aufträge in der richtigen Reihenfolge lösen, dafür gibt es neue Teile. Sicher gelöste Fragen: ${n}</div>`+JOBS.map(j=>{const done=S.jobs.includes(j.id),lock=n<j.need;return `<div class="card"><div class="row sp"><b>${j.n}</b>${done?'<span class="chip">erledigt ✓</span>':''}</div><div class="m" style="margin:4px 0 8px">${j.d}</div><div class="m">${lock?`🔒 Freigabe bei ${j.need} sicheren Fragen`:j.cost?`Kosten ${j.cost} ⚙`:'Gratis'}</div><button class="btn" ${(lock||done||(j.cost&&S.pts<j.cost))?'disabled':''} onclick="startJob('${j.id}')">${done?'Erledigt':'Auftrag starten'}</button></div>`}).join('');
+  $('#app').innerHTML=`<h1>Werkstatt</h1><div class="m">Aufträge in der richtigen Reihenfolge lösen, dafür gibt es neue Teile. Sicher gelöste Fragen: ${n}</div>`+JOBS.map(j=>{const done=S.jobs.includes(j.id),lock=n<j.need&&!S.test;return `<div class="card"><div class="row sp"><b>${j.n}</b>${done?'<span class="chip">erledigt ✓</span>':''}</div><div class="m" style="margin:4px 0 8px">${j.d}</div><div class="m">${lock?`🔒 Freigabe bei ${j.need} sicheren Fragen`:j.cost?`Kosten ${j.cost} ⚙`:'Gratis'}</div><button class="btn" ${(lock||done||(j.cost&&S.pts<j.cost))?'disabled':''} onclick="startJob('${j.id}')">${done?'Erledigt':'Auftrag starten'}</button></div>`}).join('');
 }
 function startJob(id){const j=JOBS.find(x=>x.id===id);if(j.cost)S.pts-=j.cost;W={j,order:j.steps.map((s,i)=>({s,i})).sort(()=>Math.random()-.5),next:0,err:0};save();job()}
 function job(){
@@ -291,6 +296,7 @@ function profile(){
   $('#app').innerHTML=`<h1>Profil</h1><div class="card"><div class="row sp"><div><div class="big" style="font-size:24px">${r.name}</div><div class="m">${S.xp} XP · ${n} Fragen sicher · ${streak()} Tage Serie</div></div></div></div>
   <div class="card"><div class="row sp"><span>Glückstreffer (geraten, richtig)</span><b>${S.st.lucky}</b></div><div class="row sp" style="margin-top:6px"><span>Sichere Fehler (Fehlvorstellung)</span><b>${S.st.misc}</b></div><button class="btn alt" onclick="report()">Bericht für den Fahrlehrer teilen</button></div>
   <h2>Abzeichen</h2><div class="ach">${A.map(a=>`<div class="${a[2]?'':'off'}"><span>${a[0]}<small>${a[1]}</small></span></div>`).join('')}</div>
+  <div class="card" style="border-color:rgba(255,176,32,.5)"><b>Testversion</b><div class="m" style="margin:4px 0 10px">Zum Ausprobieren: 5000 ⚙ Guthaben und alle Werkstatt-Aufträge freigeschaltet, ohne Fragen zu beantworten.</div><button class="btn alt" style="margin:0" onclick="testCredit()">${S.test?'Nochmal +5000 ⚙':'Testguthaben holen'}</button></div>
   <h2>Sicherung</h2>
   <div class="card"><b>Fortschritt sichern</b><div class="m" style="margin:4px 0 10px">Speichert Punkte, Teile, Fragenstand und Einstellungen als Datei. Nützlich bei Handywechsel oder wenn der Browser Daten löscht.</div><button class="btn" style="margin:6px 0" onclick="backup()">Sicherung speichern</button><div class="m" style="margin:10px 0 6px">Sicherung wiederherstellen:</div><input type="file" accept=".json,application/json" onchange="restore(this)"></div>
   <h2>Einstellungen</h2>
@@ -303,6 +309,7 @@ function profile(){
   <div class="card"><b>Technik</b><div class="m">3D-Darstellung mit three.js (MIT-Lizenz). Der Twingo ist ein eigenes, stilisiertes Modell, Renault ist eine Marke der Renault Group und nicht beteiligt. Motorsound: „Renault Twingo (2002) engine and exhaust sound“ von Sound Effects HD Indie Studios, Wikimedia Commons, CC BY 3.0, gekürzt. Armaturenbrett-Foto: „Renault twingo interior“ (Wikimedia Commons, gemeinfrei).</div></div>
   <button class="btn alt" onclick="if(confirm('Alles zurücksetzen?')){S=Object.assign({},DEF);save();go('home')}">Fortschritt zurücksetzen</button>`;
 }
+function testCredit(){S.pts+=5000;S.test=true;save();toast('+5000 ⚙, Werkstatt offen');profile()}
 function backup(){
   const data=JSON.stringify({app:'fahrschule2',version:VERSION,date:new Date().toISOString(),state:S}),name='fahrschule-sicherung-'+today()+'.json';
   try{const f=new File([data],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:'Fahrschule 2.0 Sicherung'}).catch(()=>{});return}}catch(e){}
