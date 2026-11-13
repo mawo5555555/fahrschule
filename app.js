@@ -5,7 +5,7 @@ let S=Object.assign({},DEF);
 try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem('fs2')||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem('fs2',JSON.stringify(S))}catch(e){}};
 if(S.test){S.pts=0;delete S.test;save()}
-const VERSION='1.7';
+const VERSION='1.8';
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const vib=n=>{try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}};
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
@@ -152,7 +152,7 @@ function quizV(){
   ${q.img?`<div class="qimg" style="${(q.c==='Vorfahrt-Szenarien'||q.c==='Gefahren-Szenarien')?'max-width:300px':'max-width:150px'}">${q.img}</div>`:''}
   <h1 style="font-size:19px;line-height:1.3;font-weight:700">${esc(q.q)}</h1><div class="m">${multi?'Mehrere Antworten richtig':'Eine Antwort richtig'} · ${q.pt||3} Fehlerpunkte</div>
   <div class="${q.grid?'ogrid':''}" style="margin-top:8px">${opts}</div>
-  ${Z.done&&!ex?`${q.anim?`<div class="qimg" style="max-width:300px">${q.anim}</div>`:''}<div class="exp">${esc(q.e)}</div>${q.p?`<div class="tip">🚗 Praxis: ${esc(q.p)}</div>`:''}`:''}
+  ${Z.done&&!ex?`${q.anim?`<div class="qimg" style="max-width:300px">${q.anim}</div><button class="chip" style="margin:0 auto 8px;color:var(--t)" onclick="document.querySelectorAll('.qimg svg').forEach(s=>s.setCurrentTime&&s.setCurrentTime(0))">↻ Nochmal abspielen</button>`:''}<div class="exp">${esc(q.e)}</div>${q.p?`<div class="tip">🚗 Praxis: ${esc(q.p)}</div>`:''}`:''}
   ${!Z.done&&!ex?`<div class="m" style="margin-top:10px">Wie sicher bist du?</div><div class="seg" style="margin:6px 0">${[[2,'Sicher'],[1,'Unsicher'],[0,'Geraten']].map(c=>`<button class="${Z.conf===c[0]?'on':''}" onclick="Z.conf=${c[0]};quizV()">${c[1]}</button>`).join('')}</div>`:''}
   ${Z.done&&Z.note?`<div class="tip" style="border-color:var(--b);color:#bcd7ff;background:rgba(59,140,255,.08)">${Z.note}</div>`:''}
   <button class="btn" onclick="${Z.done?'nextQ()':'check()'}" ${!Z.done&&(!Z.sel.length||(!ex&&Z.conf===null))?'disabled':''}>${Z.done?'Weiter':'Prüfen'}</button>`;
@@ -170,19 +170,22 @@ function tog(j){const q=Z.L[Z.i];if(q.ok.length>1)Z.sel=Z.sel.includes(j)?Z.sel.
 function check(){
   const q=Z.L[Z.i],ok=Z.sel.length===q.ok.length&&q.ok.every(x=>Z.sel.includes(x)),s=S.qs[q.id]=S.qs[q.id]||{w:0},d=D(),ex=Z.mode==='exam';
   Z.hist[Z.i]=ok?1:0;Z.note='';const lucky=ok&&!ex&&Z.conf===0,misc=!ok&&!ex&&Z.conf===2;
-  if(ok){Z.right++;Z.combo++;d.r++;d.c=Math.max(d.c,Z.combo);const g=Math.round((10+Math.min(Z.combo,6)*2)*(lucky?.4:1));if(!ex){S.xp+=g;S.pts+=g;floatTxt('+'+g+' XP')}vib(20);
+  if(ok){Z.right++;Z.combo++;d.r++;d.c=Math.max(d.c,Z.combo);const g=Math.round((10+Math.min(Z.combo,6)*2)*(lucky?.4:1));if(!ex){S.xp+=g;S.pts+=g;floatTxt('+'+g+' XP')}vib(20);if(Z.combo>=3&&!ex)confetti(12+Z.combo*2);
     if(lucky){S.st.lucky++;Z.note='Glückstreffer: richtig, aber geraten. Die Frage kommt bald wieder.';s.b=0}else{if(S.ans[q.id]!==1)S.ans[q.id]=1;s.b=Math.min(4,(s.b||0)+1)}if(s.w>0&&Z.mode==='wrong'&&!lucky)s.w--}
   else{Z.combo=0;Z.fp+=q.pt||3;s.w=(s.w||0)+(misc?2:1);s.b=0;S.ans[q.id]=0;if(misc){S.st.misc++;Z.note='Fehlvorstellung erkannt: du warst sicher, lagst aber falsch. Genau diese Fragen sind wichtig.'}vib([40,40,40])}
   s.t=Date.now();d.n++;if(!S.days.includes(today()))S.days.push(today());missions();save();Z.done=true;
   if(ex){nextQ();return}quizV();if(S.tts)speak((ok?'Richtig. ':'Leider falsch. ')+q.e);
 }
+function confetti(n){const C=['#7cff4a','#b6ff7a','#ffb020','#3b8cff','#ff5a4d','#eef3ee'];for(let i=0;i<n;i++){const d=document.createElement('i');d.className='cf';d.style.left=(8+Math.random()*84)+'vw';d.style.background=C[i%C.length];d.style.animationDelay=Math.random()*.4+'s';d.style.animationDuration=(1.2+Math.random()*.9)+'s';document.body.appendChild(d);setTimeout(()=>d.remove(),2600)}}
+function countUp(id,to,suf){const el=document.getElementById(id);if(!el)return;const t0=performance.now();const st=n=>{const p=Math.min(1,(n-t0)/900);el.textContent=Math.round(to*(1-Math.pow(1-p,3)))+(suf||'');if(p<1)requestAnimationFrame(st)};requestAnimationFrame(st)}
 function nextQ(){Z.i++;Z.sel=[];Z.done=false;Z.conf=null;Z.fresh=true;Z.spoken=false;try{speechSynthesis.cancel()}catch(e){}quizV()}
 function result(){stopSpeak();
   const ex=Z.mode==='exam',pass=Z.fp<=10;let bonus=0;
   if(ex){S.exam++;if(pass){bonus=100;S.pts+=bonus;S.xp+=60}S.best=S.best==null?Z.fp:Math.min(S.best,Z.fp)}save();
   $('#app').innerHTML=`<h1>${ex?(pass?'Bestanden 🏁':'Nicht bestanden'):'Strecke geschafft'}</h1>
-  <div class="card"><div class="big">${Z.right}<span class="m">/${Z.L.length}</span></div><div class="m">richtig${ex?` · ${Z.fp} Fehlerpunkte (max. 10)`:''}</div>${bonus?`<div class="tip" style="border-color:var(--g);color:var(--g2);background:rgba(124,255,74,.08)">+${bonus} ⚙ und +60 XP fürs Bestehen</div>`:''}${ex&&S.best!=null?`<div class="m">Bestwert: ${S.best} Fehlerpunkte</div>`:''}</div>
+  <div class="card"><div class="big"><span id="cntr">0</span><span class="m">/${Z.L.length}</span></div><div class="m">richtig${ex?` · ${Z.fp} Fehlerpunkte (max. 10)`:''}</div>${bonus?`<div class="tip" style="border-color:var(--g);color:var(--g2);background:rgba(124,255,74,.08)">+${bonus} ⚙ und +60 XP fürs Bestehen</div>`:''}${ex&&S.best!=null?`<div class="m">Bestwert: ${S.best} Fehlerpunkte</div>`:''}</div>
   <button class="btn" onclick="Z=null;go('garage')">Teile kaufen</button><button class="btn alt" onclick="Z=null;go('home')">Zur Startseite</button>`;
+  countUp('cntr',Z.right);if(pass&&ex)confetti(70);else if(!ex&&Z.right>=Z.L.length*.8)confetti(36)
 }
 /* PROGNOSE */
 function forecast(){const qs=Q();if(!qs.length)return{p:0,n:0};let seen=0;const pr=qs.map(q=>{const a=S.ans[q.id],s=S.qs[q.id]||{};if(a===1){seen++;return .9}if(a===0){seen++;return .3}return .4});
