@@ -95,17 +95,22 @@ function signAt(k,state){ // Schild an der rechten Seite der Zufahrt k (lokal S�
   if(state==='rvl')return'';const s={main:SIGNS[2].s,yield:SIGNS[0].s,stop:SIGNS[1].s}[state];
   return `<g transform="rotate(${-90*k} 214 262)"><g transform="translate(200,248) scale(.28)">${s.replace('<svg viewBox="0 0 100 100">','').replace('</svg>','')}</g></g>`}
 function scene(cfg,anim){
-  const {st,mine,other,mo,ko}=cfg;const kO=ko;
-  let road=`<rect width="300" height="300" fill="#101612"/><rect x="110" width="80" height="300" fill="#2a312c"/><rect y="110" width="300" height="80" fill="#2a312c"/><rect x="110" y="110" width="80" height="80" fill="#2f3731"/>
-  <path d="M150 0 V108 M150 192 V300 M0 150 H108 M192 150 H300" stroke="#e8ecd8" stroke-width="2" stroke-dasharray="10 8" opacity=".55"/>`;
-  [0,1,2,3].forEach(k=>{road+=`<g transform="rotate(${90*k} 150 150)">${signAt(k,k%2?st[1]:st[0])}${(k%2?st[1]:st[0])==='stop'?'<path d="M152 196 H188" stroke="#fff" stroke-width="3"/>':''}</g>`});
-  const car=(c,k,m,lbl,idx)=>{const P=pts(m);let i0=P.findIndex(p=>p[1]<=250);const a=P[i0],b=P[i0+1];const ang=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;
-    const body=`<rect x="-15" y="-8" width="30" height="16" rx="5" fill="${c}"/><rect x="2" y="-6" width="8" height="12" rx="2" fill="#0a1214" opacity=".85"/><rect x="-14" y="-6" width="4" height="4" fill="#ffe9a0"/>`;
-    const arrow=`<path d="${d(P.slice(i0+1))}" fill="none" stroke="${c}" stroke-width="3" stroke-dasharray="3 5" stroke-linecap="round" opacity=".9"/>`;
-    const mover=anim?`<g><g>${body.replace(/rect x="-15"/,'rect x="-15"')}</g><animateMotion path="${d(P.slice(i0))}" dur="2.6s" begin="${idx*2.7}s;${idx*2.7+7}s" fill="freeze" rotate="auto" calcMode="linear"/></g>`:`<g transform="translate(${a[0]},${a[1]}) rotate(${ang})">${body}</g>`;
+  const {st,mine,mo,ko}=cfg;
+  let road=`<defs><linearGradient id="as" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2e3530"/><stop offset="1" stop-color="#252b27"/></linearGradient></defs><rect width="300" height="300" fill="#0d1410"/>
+  <g fill="#18211b" stroke="#222d25"><rect x="8" y="8" width="88" height="88" rx="8"/><rect x="204" y="8" width="88" height="88" rx="8"/><rect x="8" y="204" width="88" height="88" rx="8"/><rect x="204" y="204" width="88" height="88" rx="8"/></g>
+  <rect x="106" width="88" height="300" fill="#394039"/><rect y="106" width="300" height="88" fill="#394039"/>
+  <rect x="110" width="80" height="300" fill="url(#as)"/><rect y="110" width="300" height="80" fill="url(#as)"/><rect x="110" y="110" width="80" height="80" fill="#2b322d"/>
+  <path d="M150 0 V108 M150 192 V300 M0 150 H108 M192 150 H300" stroke="#e8ecd8" stroke-width="2" stroke-dasharray="10 8" opacity=".5"/>`;
+  [0,1,2,3].forEach(k=>{let z='';for(let i=0;i<7;i++)z+=`<rect x="${113+i*11}" y="196" width="6" height="12" fill="#e9ecdf" opacity=".5"/>`;
+    const sg=(k%2?st[1]:st[0]);road+=`<g transform="rotate(${90*k} 150 150)">${z}${signAt(k,sg)}${sg==='stop'?'<path d="M152 214 H188" stroke="#fff" stroke-width="3"/>':''}</g>`});
+  const body=(c,m)=>`<ellipse cx="1" cy="3" rx="17" ry="10" fill="#000" opacity=".38"/><rect x="-15" y="-8" width="30" height="16" rx="6" fill="${c}"/><rect x="-14" y="-8" width="28" height="6" rx="3" fill="#fff" opacity=".2"/><rect x="0" y="-6" width="9" height="12" rx="2.5" fill="#0a1214" opacity=".9"/><rect x="-10" y="-6" width="7" height="12" rx="2" fill="#0a1214" opacity=".6"/><circle cx="14" cy="-5" r="1.9" fill="#fff6c0"/><circle cx="14" cy="5" r="1.9" fill="#fff6c0"/><path d="M15 -6 L36 -13 L36 13 L15 6Z" fill="#fff6c0" opacity=".11"/>${m==='left'?'<circle cx="13" cy="-8" r="1.8" fill="#ffb020"><animate attributeName="opacity" values="1;0;1" dur=".7s" repeatCount="indefinite"/></circle><circle cx="-13" cy="-8" r="1.8" fill="#ffb020"><animate attributeName="opacity" values="1;0;1" dur=".7s" repeatCount="indefinite"/></circle>':m==='right'?'<circle cx="13" cy="8" r="1.8" fill="#ffb020"><animate attributeName="opacity" values="1;0;1" dur=".7s" repeatCount="indefinite"/></circle><circle cx="-13" cy="8" r="1.8" fill="#ffb020"><animate attributeName="opacity" values="1;0;1" dur=".7s" repeatCount="indefinite"/></circle>':''}`;
+  const car=(c,k,m,idx)=>{const P=pts(m);let i0=P.findIndex(p=>p[1]<=250);const a=P[i0],b=P[i0+1];const ang=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;
+    const arrow=`<path d="${d(P.slice(i0+1))}" fill="none" stroke="${c}" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round" opacity=".75"/>`;
+    const t0=.4+idx*2.7,brake=idx>0?`<rect x="-16" y="-6" width="3" height="4" fill="#ff3b30"><animate attributeName="opacity" values="1;1;0" keyTimes="0;.9;1" dur="${t0}s" repeatCount="1" fill="freeze"/></rect><rect x="-16" y="2" width="3" height="4" fill="#ff3b30"><animate attributeName="opacity" values="1;1;0" keyTimes="0;.9;1" dur="${t0}s" repeatCount="1" fill="freeze"/></rect>`:'';
+    const mover=anim?`<g>${body(c,m)}${brake}<animateMotion path="${d(P.slice(i0))}" dur="2.4s" begin="${t0}s;${t0+7.5}s" fill="freeze" rotate="auto" calcMode="spline" keyTimes="0;1" keySplines=".4 0 .25 1"/></g>`:`<g transform="translate(${a[0]},${a[1]}) rotate(${ang})">${body(c,m)}</g>`;
     return `<g transform="rotate(${90*k} 150 150)">${arrow}${mover}</g>`};
-  const sv=`<svg viewBox="0 0 300 300" width="100%" style="display:block;border-radius:14px">${road}${car('#3b8cff',kO,mo,'B',cfg.second?0:1)}${car('#6bd13a',0,mine,'A',cfg.second?1:0)}</svg>`;
-  return sv}
+  const iB=cfg.both?0:(cfg.second?0:1),iA=cfg.both?0:(cfg.second?1:0);
+  return `<svg viewBox="0 0 300 300" width="100%" style="display:block;border-radius:14px">${road}${car('#3b8cff',ko,mo,iB)}${car('#6bd13a',0,mine,iA)}</svg>`}
 const STS=[['rvl','rvl'],['main','yield'],['yield','main'],['main','stop'],['stop','main']];
 const prio=(st,mA,mB,k)=>{ // liefert 'A','B','both'
   if(k===2){if(!conflict(mA,0,mB,2))return 'both';if(mA==='left'&&mB==='left')return 'both';if(mA==='left')return 'B';if(mB==='left')return 'A';return 'both'}
@@ -123,7 +128,7 @@ STS.forEach(st=>[1,2,3].forEach(k=>M.forEach(mA=>M.forEach(mB=>{
     sA!==sB?(w==='A'?'Du fährst auf der Vorfahrtstraße (gelbe Raute). Das blaue Auto muss '+(sB==='stop'?'an der Haltlinie anhalten und ':'')+'warten.':'Das blaue Auto fährt auf der Vorfahrtstraße. Du musst '+(sA==='stop'?'am Stoppschild anhalten und ':'')+'warten.'):
     w==='A'?'Es gilt „Rechts vor links“. Das blaue Auto kommt von links, du kommst von rechts und darfst zuerst.':'Es gilt „Rechts vor links“. Das blaue Auto kommt von rechts und darf zuerst fahren.';
   const O=['Mein Auto (grün)','Das blaue Auto','Beide dürfen gleichzeitig'];
-  const base={c:'Vorfahrt-Szenarien',pt:5,img:scene(cfg,false),anim:scene({...cfg,second:w==='B'},true),e:why,p:'Im Zweifel: Schilder zuerst, dann „rechts vor links“, und nicht auf Vorfahrt bestehen.'};
+  const base={c:'Vorfahrt-Szenarien',pt:5,img:scene(cfg,false),anim:scene({...cfg,second:w==='B',both:w==='both'},true),e:why,p:'Im Zweifel: Schilder zuerst, dann „rechts vor links“, und nicht auf Vorfahrt bestehen.'};
   const intro='Du bist das grüne Auto und fährst '+MN[mA]+'. Das blaue Auto kommt von '+['','links','gegenüber','rechts'][k]+' und fährt '+MN[mB]+'. ';
   const tiny=st.join('')==='rvlrvl'?'Keine Schilder.':st[0]==='main'?'Du bist auf der Vorfahrtstraße.':st[1]==='main'?'Das blaue Auto ist auf der Vorfahrtstraße.':'';
   const ia={A:0,B:1,both:2}[w];

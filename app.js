@@ -4,6 +4,7 @@ const DEF={st:{lucky:0,misc:0},diary:[],tts:false,pts:0,xp:0,own:[],jobs:[],days
 let S=Object.assign({},DEF);
 try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem('fs2')||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem('fs2',JSON.stringify(S))}catch(e){}};
+const VERSION='1.3';
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const vib=n=>{try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}};
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
@@ -15,7 +16,7 @@ let view='home';
 function go(v){view=v;render()}
 function render(){
   $('#nav').innerHTML=NAV.map(n=>`<button class="${(view===n[0]||(view==='quiz'&&n[0]==='learn')||((view==='lab'||view==='diary')&&n[0]==='learn'))?'on':''}" onclick="Z=null;W=null;go('${n[0]}')">${ico(n[2])}${n[1]}</button>`).join('');
-  ({home,learn,garage,werk,profile,quiz:quizV,lab,diary})[view]();window.scrollTo(0,0);
+  if(view!=='quiz')stopSpeak();stopEngine();cancelAnimationFrame(LABRAF);({home,learn,garage,werk,profile,quiz:quizV,lab,diary})[view]();window.scrollTo(0,0);
 }
 /* Rang & Tag */
 const RANKS=[[0,'Fahrschüler'],[150,'Kurvenjäger'],[400,'Straßenprofi'],[800,'Verkehrsfuchs'],[1500,'Prüfungsreif'],[3000,'Legende']];
@@ -55,8 +56,8 @@ const ownedRim=()=>PARTS.filter(p=>p.rim&&has(p.id)).map(p=>p.rim);
 const cfg=()=>{S.cfg=S.cfg||{rim:0,tint:0};if(S.cfg.rim&&!ownedRim().includes(S.cfg.rim))S.cfg.rim=0;return S.cfg};
 const tintMax=()=>Math.max(0,...PARTS.filter(p=>p.tint&&has(p.id)).map(p=>p.tint));
 const audN=()=>PARTS.filter(p=>p.aud&&has(p.id)).length;
-const car=()=>'<div class="car3d"></div>';
-function visStage(){const s=stats(),c=cfg(),rim=c.rim||0,tint=Math.min(c.tint||0,tintMax()),low=s.low>=5;if(rim===3&&low)return 3;if(low&&(rim>0||tint>0))return 2;if(rim>0||tint>0||low)return 1;return 0}
+const car=()=>'<div class="car3d ph"></div>';
+function visStage(){const s=stats(),c=cfg(),rim=c.rim||0,tint=Math.min(c.tint||0,tintMax()),low=s.low>=5;if(!rim&&!tint)return 0;if(rim===3&&low)return 3;if(low&&rim>0)return 2;return 1}
 function mount3d(v){const m=document.querySelector('.car3d');if(!m)return;
   if(v!=='under'){const n=visStage(),im=new Image();im.onload=()=>{if(m.isConnected){m.innerHTML='<img src="img/stage'+n+'.png" alt="Twingo" style="width:100%;display:block;border-radius:20px">'}};im.onerror=()=>mount3dReal(v);im.src='img/stage'+n+'.png';return}
   mount3dReal(v)}
@@ -84,10 +85,20 @@ function engineGraph(A,dest,o){
   if(o.sport||o.fan){for(let i=0;i<16;i++){const t=t0+3.05+Math.random()*.85,a=.18+Math.random()*.3;cg.gain.setValueAtTime(a,t);cg.gain.setValueAtTime(0,t+.025+Math.random()*.02)}}
   if(o.turbo){const t=t0+3;cg.gain.setValueAtTime(.35,t);cg.gain.exponentialRampToValueAtTime(.001,t+.45)}
   return {end:t0+5.4}}
-function revSound(){try{const A=new (window.AudioContext||window.webkitAudioContext)();if(A.state==='suspended')A.resume();engineGraph(A,A.destination,{ps:stats().ps,sport:has('ausp'),fan:has('kruemm'),turbo:has('turbo')});vib([80,40,120,40,200])}catch(e){}}
+let EN={buf:null,src:null,A:null};
+function stopEngine(){try{EN.src&&EN.src.stop()}catch(e){}EN.src=null}
+async function revSound(){stopEngine();
+  try{const A=EN.A||(EN.A=new (window.AudioContext||window.webkitAudioContext)());if(A.state==='suspended')await A.resume();
+    if(!EN.buf){const ab=await fetch('snd/motor.m4a').then(r=>r.arrayBuffer());EN.buf=await new Promise((ok,no)=>A.decodeAudioData(ab,ok,no))}
+    const src=A.createBufferSource();src.buffer=EN.buf;src.playbackRate.value=1+Math.min(.1,(stats().ps-75)/450);let node=src;
+    if(has('ausp')){const ls=A.createBiquadFilter();ls.type='lowshelf';ls.frequency.value=220;ls.gain.value=5;node.connect(ls);node=ls}
+    if(has('kruemm')){const hs=A.createBiquadFilter();hs.type='highshelf';hs.frequency.value=2500;hs.gain.value=4;node.connect(hs);node=hs}
+    if(has('ausp')||has('kruemm')){const sh=A.createWaveShaper(),c=new Float32Array(512);for(let i=0;i<512;i++){const x=i/256-1;c[i]=Math.tanh(x*1.8)}sh.curve=c;node.connect(sh);node=sh}
+    const cp=A.createDynamicsCompressor();cp.threshold.value=-22;cp.ratio.value=4;const g=A.createGain();g.gain.value=2.2;node.connect(cp);cp.connect(g);g.connect(A.destination);src.start();EN.src=src;vib([60,40,120])}
+  catch(e){try{const A=new (window.AudioContext||window.webkitAudioContext)();engineGraph(A,A.destination,{ps:stats().ps,sport:has('ausp'),fan:has('kruemm'),turbo:has('turbo')})}catch(e2){}}}
 function home(){
   const r=rank(),p=r.next?(S.xp-r.cur)/(r.next-r.cur):1,d=D(),s=stats();
-  $('#app').innerHTML=`<div class="top"><div class="logo">FAHRSCHULE <b>2.0</b></div><div class="chips"><div class="chip">🔥 ${streak()}</div><div class="chip">⚙ ${S.pts}</div></div></div>
+  $('#app').innerHTML=`<div class="top"><div class="logo">FAHRSCHULE <b>2.0</b> <span class="ver">V${VERSION}</span></div><div class="chips"><div class="chip">🔥 ${streak()}</div><div class="chip">⚙ ${S.pts}</div></div></div>
   <div class="stage"><div class="tag">Twingo I · Milano 1</div><div class="hud"><b>${s.ps} PS</b><span>${s.nm} Nm · ${s.t} s</span></div>${car()}</div>
   <div class="card"><div class="row sp"><b>${r.name}</b><span class="m">${S.xp} XP${r.next?' · nächster Rang: '+r.nn:''}</span></div><div class="bar" style="margin-top:10px"><i style="width:${p*100}%"></i></div></div>
   ${(()=>{const f=forecast();return `<div class="card"><div class="row sp"><b>Prüfungs-Prognose</b><span class="big" style="font-size:26px;color:var(--g2)">${f.p} %</span></div><div class="bar" style="margin:8px 0"><i style="width:${f.p}%"></i></div><div class="m">${f.n} von ${f.tot} Fragen angefangen. Grobe Schätzung aus deinen bisherigen Antworten.</div></div>`})()}
@@ -105,11 +116,12 @@ function learn(){
 /* QUIZ */
 let Z=null;
 function pick(n,list){const now=Date.now(),IV=[0,1,3,7,16],w=list.map(q=>{const s=S.qs[q.id]||{};const due=s.t?(now-s.t)/864e5>=IV[Math.min(s.b||0,4)]:true;return{q,k:(s.w?3:1)*(!s.t?1.2:(due?1:.15))*(0.4+Math.random())}});return w.sort((a,b)=>b.k-a.k).slice(0,n).map(x=>x.q)}
+let LABRAF=0;
 function startQuiz(mode,cat){
   let qs=Q();if(mode==='wrong')qs=qs.filter(q=>(S.qs[q.id]||{}).w>0);if(mode==='cat')qs=qs.filter(q=>q.c===cat);if(mode==='cats')qs=qs.filter(q=>cat.includes(q.c));
   const L=mode==='exam'?qs.slice().sort(()=>Math.random()-.5).slice(0,30):pick(10,qs);
   if(!L.length){toast('Keine Fragen vorhanden');return}
-  Z={mode,L,i:0,sel:[],done:false,right:0,fp:0,combo:0,hist:[],conf:null};view='quiz';render();
+  Z={mode,L,i:0,sel:[],done:false,right:0,fp:0,combo:0,hist:[],conf:null,fresh:true};view='quiz';render();
 }
 function quizV(){
   if(Z.i>=Z.L.length)return result();
@@ -125,9 +137,15 @@ function quizV(){
   ${!Z.done&&!ex?`<div class="m" style="margin-top:10px">Wie sicher bist du?</div><div class="seg" style="margin:6px 0">${[[2,'Sicher'],[1,'Unsicher'],[0,'Geraten']].map(c=>`<button class="${Z.conf===c[0]?'on':''}" onclick="Z.conf=${c[0]};quizV()">${c[1]}</button>`).join('')}</div>`:''}
   ${Z.done&&Z.note?`<div class="tip" style="border-color:var(--b);color:#bcd7ff;background:rgba(59,140,255,.08)">${Z.note}</div>`:''}
   <button class="btn" onclick="${Z.done?'nextQ()':'check()'}" ${!Z.done&&(!Z.sel.length||(!ex&&Z.conf===null))?'disabled':''}>${Z.done?'Weiter':'Prüfen'}</button>`;
+  if(Z.fresh){Z.fresh=false;const ap=$('#app');ap.classList.remove('qa');void ap.offsetWidth;ap.classList.add('qa')}
   if(!Z.done&&S.tts&&!Z.spoken){Z.spoken=true;readQ()}
 }
-function speak(t){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='de-DE';u.rate=.98;speechSynthesis.speak(u)}catch(e){}}
+let VOICES=[];function loadVoices(){try{VOICES=speechSynthesis.getVoices().filter(v=>/^de/i.test(v.lang))}catch(e){}}
+try{speechSynthesis.onvoiceschanged=loadVoices;loadVoices()}catch(e){}
+function bestVoice(){loadVoices();if(S.voice){const v=VOICES.find(x=>x.name===S.voice);if(v)return v}const sc=v=>(/premium|enhanced|erweitert|verbessert|natural|neural|online/i.test(v.name)?10:0)+(/google/i.test(v.name)?6:0)+(/anna|petra|markus|katja|viktoria|conrad|amala|yannick|steffi/i.test(v.name)?3:0)+(v.localService?0:2)+(v.lang==='de-DE'?1:0);return VOICES.slice().sort((x,y)=>sc(y)-sc(x))[0]}
+function speak(t){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t),v=bestVoice();if(v){u.voice=v;u.lang=v.lang}else u.lang='de-DE';u.rate=.96;u.pitch=1;speechSynthesis.speak(u)}catch(e){}}
+function stopSpeak(){try{speechSynthesis.cancel()}catch(e){}}
+window.addEventListener('pagehide',()=>{stopSpeak();stopEngine()});document.addEventListener('visibilitychange',()=>{if(document.hidden){stopSpeak();stopEngine()}});
 function readQ(){const q=Z&&Z.L[Z.i];if(!q)return;speak(q.q+'. '+q.a.map((a,j)=>'Antwort '+'ABCD'[j]+': '+(a.startsWith('<svg')?'ein Bild':a)).join('. '))}
 function tog(j){const q=Z.L[Z.i];if(q.ok.length>1)Z.sel=Z.sel.includes(j)?Z.sel.filter(x=>x!==j):Z.sel.concat(j);else Z.sel=[j];quizV()}
 function check(){
@@ -139,8 +157,8 @@ function check(){
   s.t=Date.now();d.n++;if(!S.days.includes(today()))S.days.push(today());missions();save();Z.done=true;
   if(ex){nextQ();return}quizV();if(S.tts)speak((ok?'Richtig. ':'Leider falsch. ')+q.e);
 }
-function nextQ(){Z.i++;Z.sel=[];Z.done=false;Z.conf=null;Z.spoken=false;try{speechSynthesis.cancel()}catch(e){}quizV()}
-function result(){
+function nextQ(){Z.i++;Z.sel=[];Z.done=false;Z.conf=null;Z.fresh=true;Z.spoken=false;try{speechSynthesis.cancel()}catch(e){}quizV()}
+function result(){stopSpeak();
   const ex=Z.mode==='exam',pass=Z.fp<=10;let bonus=0;
   if(ex){S.exam++;if(pass){bonus=100;S.pts+=bonus;S.xp+=60}S.best=S.best==null?Z.fp:Math.min(S.best,Z.fp)}save();
   $('#app').innerHTML=`<h1>${ex?(pass?'Bestanden 🏁':'Nicht bestanden'):'Strecke geschafft'}</h1>
@@ -164,21 +182,41 @@ function report(){const qs=Q(),cats=[...new Set(qs.map(q=>q.c))],f=forecast();
   const txt=`Fahrschule 2.0 – Lernstand ${today()}\nPrognose Theorieprüfung: ca. ${f.p} % (grobe Schätzung)\nLernserie: ${streak()} Tage · beste Simulation: ${S.best==null?'–':S.best+' Fehlerpunkte'}\nGlückstreffer: ${S.st.lucky} · sichere Fehler: ${S.st.misc}\n\n${rows.join('\n')}`.replace(/\\n/g,'\n');
   if(navigator.share)navigator.share({title:'Lernstand Fahrschule',text:txt}).catch(()=>{});else{try{navigator.clipboard.writeText(txt);toast('Bericht kopiert')}catch(e){toast('Teilen nicht möglich')}}}
 /* BREMSWEG-LABOR */
-let LAB={v:50,s:1};
+let LAB={v:50,s:1,o:40};
 function lab(){
-  const v=LAB.v,f=LAB.s,re=v/10*3,br=(v/10)**2*f,sum=re+br,mx=(re+br)*1.05;
-  const pct=x=>x/mx*100;
+  const v=LAB.v,f=LAB.s,o=LAB.o,re=v/10*3,br=(v/10)**2*f,tot=re+br,seg=(arr,k,key)=>`<div class="seg" style="margin:8px 0">${arr.map(x=>`<button class="${LAB[key]===x[0]?'on':''}" onclick="LAB.${key}=${x[0]};lab()">${x[1]}</button>`).join('')}</div>`;
   $('#app').innerHTML=`<div class="top"><button class="chip" style="color:var(--t)" onclick="go('learn')">←</button><span class="m">Bremsweg-Labor</span><span></span></div>
   <h1>${v} km/h</h1><input type="range" min="20" max="130" step="10" value="${v}" oninput="LAB.v=+this.value;lab()">
-  <div class="seg" style="margin:14px 0"><button class="${f===1?'on':''}" onclick="LAB.s=1;lab()">Trocken</button><button class="${f===2?'on':''}" onclick="LAB.s=2;lab()">Nass</button><button class="${f===4?'on':''}" onclick="LAB.s=4;lab()">Schnee</button></div>
-  <div class="card"><div style="position:relative;height:56px;border-radius:12px;background:#101612;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:${pct(re)}%;background:rgba(255,176,32,.5)"></div><div style="position:absolute;left:${pct(re)}%;top:0;bottom:0;width:${pct(br)}%;background:rgba(255,90,77,.6)"></div><div id="labcar" style="position:absolute;left:0;top:8px;width:60px;transition:left 1.6s cubic-bezier(.2,.7,.3,1)"><svg viewBox="0 0 120 50" width="100%"><path d="M6 36V26q0-4 5-5l12-10q3-2 8-2h30q5 0 8 3l14 9q6 1 7 6v9z" fill="#7cff4a"/><circle cx="30" cy="38" r="8" fill="#0e0f0f"/><circle cx="90" cy="38" r="8" fill="#0e0f0f"/></svg></div></div>
-  <div class="row sp" style="margin-top:12px"><div><div class="m">Reaktionsweg</div><b style="color:var(--o)">${Math.round(re)} m</b></div><div><div class="m">Bremsweg</div><b style="color:var(--r)">${Math.round(br)} m</b></div><div><div class="m">Anhalteweg</div><b style="color:var(--g2)">${Math.round(sum)} m</b></div></div>
-  <div class="m" style="margin-top:10px">≈ ${(sum/4).toFixed(0)} Autolängen · Auf Nässe verdoppelt sich der Bremsweg grob, bei Schnee vervierfacht er sich.</div></div>
-  <button class="btn" onclick="const c=$('#labcar');c.style.transition='none';c.style.left='0';requestAnimationFrame(()=>requestAnimationFrame(()=>{c.style.transition='left 1.6s cubic-bezier(.3,.1,.4,1)';c.style.left=Math.max(0,(${pct(sum)}/100*($('#labcar').parentNode.clientWidth)-60))+'px'}))">Bremsung starten</button>`;
-}
+  ${seg([[1,'Trocken'],[2,'Nass'],[4,'Schnee']],0,'s')}${seg([[20,'Kind in 20 m'],[40,'in 40 m'],[60,'in 60 m']],0,'o')}
+  <div class="card" style="padding:10px"><svg id="labsvg" viewBox="0 0 300 120" width="100%" style="display:block;border-radius:12px"></svg>
+  <div class="row sp" style="margin-top:10px"><div><div class="m">Reaktionsweg</div><b style="color:var(--o)">${Math.round(re)} m</b></div><div><div class="m">Bremsweg</div><b style="color:var(--r)">${Math.round(br)} m</b></div><div><div class="m">Anhalteweg</div><b style="color:var(--g2)">${Math.round(tot)} m</b></div></div>
+  <div id="labmsg" class="tip" style="border-color:var(--b);color:#bcd7ff;background:rgba(59,140,255,.08);margin-top:10px">Schaffst du es, rechtzeitig anzuhalten? Starte die Bremsung.</div></div>
+  <button class="btn" onclick="labRun()">Bremsung starten</button><div class="m">Faustwerte: Nässe verdoppelt den Bremsweg, bei Schnee vervierfacht er sich.</div>`;
+  labDraw(0,0,0,0)}
+function labDraw(x,sp,phase,hit){
+  const v=LAB.v,o=LAB.o,tot=v/10*3+(v/10)**2*LAB.s,W=Math.max(o,tot)*1.1+6,px=m=>12+m/W*270,vm=v/3.6,re=v/10*3,cw=Math.max(24,4*270/W);
+  let g=`<rect width="300" height="120" fill="#0d1410"/><rect y="36" width="300" height="52" fill="#2a312c"/><path d="M0 62H300" stroke="#e8ecd8" stroke-width="1.5" stroke-dasharray="8 7" opacity=".5"/><rect y="34" width="300" height="3" fill="#394039"/><rect y="88" width="300" height="3" fill="#394039"/>`;
+  for(let m=0;m<=W;m+=10)g+=`<path d="M${px(m)} 92V98" stroke="#5b665e"/><text x="${px(m)}" y="110" font-size="7" fill="#8b9a8f" text-anchor="middle">${m}</text>`;
+  const xr=Math.min(x,re),xb=Math.max(0,x-re);
+  g+=`<rect x="${px(0)}" y="70" width="${Math.max(0,px(xr)-px(0))}" height="6" fill="#ffb020" opacity=".7"/><rect x="${px(re)}" y="70" width="${Math.max(0,px(re+xb)-px(re))}" height="6" fill="#ff5a4d" opacity=".8"/>`;
+  if(xb>0)g+=`<path d="M${px(re)} 74H${px(re+xb)}M${px(re)} 66H${px(re+xb)}" stroke="#000" stroke-width="2" opacity=".5"/>`;
+  g+=`<g transform="translate(${px(o)},58)"><circle cy="-8" r="4" fill="#f2c9a0"/><rect x="-3.5" y="-3" width="7" height="12" rx="3" fill="#ffb020"/></g><path d="M${px(o)} 40V84" stroke="#ff5a4d" stroke-dasharray="3 3"/>`;
+  g+=`<g transform="translate(${px(x)-cw},${hit?55:58}) ${hit?'rotate(-4)':''}"><ellipse cx="${cw/2}" cy="14" rx="${cw/2+2}" ry="3" fill="#000" opacity=".4"/><rect width="${cw}" height="11" rx="4" fill="#6bd13a"/><rect x="${cw*.55}" y="2" width="${cw*.3}" height="7" rx="2" fill="#0a1214"/>${phase===2?`<rect x="0" y="2" width="2.5" height="7" fill="#ff3b30"/>`:''}</g>`;
+  if(hit)g+=`<circle cx="${px(o)}" cy="58" r="14" fill="#ff5a4d" opacity=".35"><animate attributeName="r" values="6;22" dur=".5s" fill="freeze"/><animate attributeName="opacity" values=".6;0" dur=".5s" fill="freeze"/></circle>`;
+  g+=`<text x="8" y="16" font-size="13" font-weight="800" fill="#eef3ee">${Math.round(sp)} km/h</text><text x="292" y="16" font-size="9" fill="#8b9a8f" text-anchor="end">${x.toFixed(1)} m</text>`;
+  const el=document.getElementById('labsvg');if(el)el.innerHTML=g}
+function labRun(){
+  cancelAnimationFrame(LABRAF);const v=LAB.v,o=LAB.o,vm=v/3.6,re=v/10*3,tr=re/vm,br=(v/10)**2*LAB.s,a=vm*vm/(2*br),tst=vm/a,t0=performance.now(),msg=document.getElementById('labmsg');
+  const step=now=>{const t=(now-t0)/1000*.8;let x,sp,ph;
+    if(t<tr){x=vm*t;sp=v;ph=1}else{const tb=Math.min(t-tr,tst);x=vm*tr+vm*tb-.5*a*tb*tb;sp=(vm-a*tb)*3.6;ph=2}
+    if(x>=o){const d=o-vm*tr;const vi=d<=0?v:Math.sqrt(Math.max(0,vm*vm-2*a*d))*3.6;labDraw(o,vi,2,true);vib([120,60,200]);msg.className='tip';msg.style.cssText='border-color:var(--r);color:#ffb4ac;background:rgba(255,90,77,.1)';msg.innerHTML='💥 Aufprall mit <b>'+Math.round(vi)+' km/h</b>. Mit '+Math.round(vi)+' km/h wirkt die Kraft wie ein Sturz aus etwa '+Math.round(vi*vi/254)+' m Höhe.';return}
+    labDraw(x,sp,ph,false);
+    if(t-tr>=tst&&ph===2){msg.className='tip';msg.style.cssText='border-color:var(--g);color:var(--g2);background:rgba(124,255,74,.08)';msg.innerHTML='✅ Gestoppt, <b>'+(o-x).toFixed(1)+' m</b> vor dem Kind. Anhalteweg '+Math.round(x)+' m.';return}
+    LABRAF=requestAnimationFrame(step)};
+  LABRAF=requestAnimationFrame(step)}
 /* GARAGE */
 const gauge=(l,v,max,u)=>`<div style="text-align:center"><svg width="104" height="104" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="3" stroke-dasharray="85 113" transform="rotate(135 22 22)" stroke-linecap="round"/><circle cx="22" cy="22" r="18" fill="none" stroke="#7cff4a" stroke-width="3" stroke-dasharray="${Math.min(1,v/max)*85} 113" transform="rotate(135 22 22)" stroke-linecap="round"/><text x="22" y="24" text-anchor="middle" font-size="9" font-weight="900" fill="#eef3ee">${v}</text><text x="22" y="31" text-anchor="middle" font-size="4" fill="#8b9a8f">${u}</text></svg><div class="m" style="margin-top:-8px">${l}</div></div>`;
-function loadImg(sel,urls,done,sty){let i=0;const next=()=>{if(i>=urls.length)return;const u=urls[i++],im=new Image();im.onload=()=>{const m=document.querySelector(sel);if(m){m.innerHTML='<img src="'+u+'" style="'+(sty||'width:100%')+';display:block;border-radius:14px">';done&&done()}};im.onerror=next;im.src=u};next()}
+function loadImg(sel,urls,done,sty,fail){let i=0;const next=()=>{if(i>=urls.length){fail&&fail();return}const u=urls[i++],im=new Image();im.onload=()=>{const m=document.querySelector(sel);if(m){m.classList.remove('ph','ph-tall');m.innerHTML='<img src="'+u+'" style="'+(sty||'width:100%')+';display:block;border-radius:14px">';done&&done()}};im.onerror=next;im.src=u};next()}
 const underStage=()=>has('kruemm')||has('turbo')?2:(has('ausp')?1:0);
 let GT='out';
 function underSVG_unused(){
@@ -210,14 +248,14 @@ function garage(){
   const s=stats(),c=cfg(),rims=ownedRim(),tm=tintMax();
   let stage;
   if(GT==='out')stage=`<div class="stage"><div class="tag">Twingo I · Milano 1</div>${car()}</div><button class="btn alt" onclick="revSound()">Motor starten</button>`;
-  else if(GT==='under')stage=`<div class="stage"><div class="tag">Hebebühne</div><div id="imgun">${car()}</div></div><div class="m" style="margin:6px 4px">Auf der Hebebühne siehst du Auspuffanlage, Motor und Getriebe. Teile kaufst du unten unter Motor.</div>`;
-  else stage=`<div class="stage" style="padding:12px"><div id="imgin">${innerSVG()}</div></div><button class="btn" onclick="playBeat()">Sound testen</button>`;
+  else if(GT==='under')stage=`<div class="stage"><div class="tag">Hebebühne</div><div id="imgun" class="ph ph-tall"></div></div><div class="m" style="margin:6px 4px">Auf der Hebebühne siehst du Auspuffanlage, Motor und Getriebe. Teile kaufst du unten unter Motor.</div>`;
+  else stage=`<div class="stage" style="padding:12px"><div id="imgin" class="ph"></div></div><button class="btn" onclick="playBeat()">Sound testen</button>`;
   const seg=`<div class="seg" style="margin:8px 0">${[['out','Außen'],['under','Unterboden'],['in','Innenraum']].map(x=>`<button class="${GT===x[0]?'on':''}" onclick="GT='${x[0]}';garage()">${x[1]}</button>`).join('')}</div>`;
   const pickers=GT==='out'?`<div class="card"><div class="m" style="margin-bottom:6px">Bild zeigt Stufe ${visStage()+1} von 4 und ändert sich mit deiner Auswahl.</div><b>Felgen</b><div class="row" style="margin:8px 0;flex-wrap:wrap"><button class="chip" style="color:var(--t);${!c.rim?'border-color:var(--g)':''}" onclick="setCfg('rim',0)">Stahl</button>${rims.map(r=>`<button class="chip" style="color:var(--t);${c.rim===r?'border-color:var(--g)':''}" onclick="setCfg('rim',${r})">${PARTS.find(p=>p.rim===r).n}</button>`).join('')}</div>
   <b>Scheiben</b><div class="row" style="margin:8px 0"><button class="chip" style="color:var(--t);${!c.tint?'border-color:var(--g)':''}" onclick="setCfg('tint',0)">Klar</button>${[1,2,3].filter(t=>t<=tm).map(t=>`<button class="chip" style="color:var(--t);${c.tint===t?'border-color:var(--g)':''}" onclick="setCfg('tint',${t})">Stufe ${t}</button>`).join('')}</div></div>`:'';
   $('#app').innerHTML=`<div class="top"><h1 style="margin:0">Garage</h1><div class="chip">⚙ ${S.pts}</div></div>${seg}${stage}${pickers}
   <div class="card gauges">${gauge('Leistung',s.ps,140,'PS')}${gauge('Drehmoment',s.nm,150,'Nm')}<div style="align-self:center"><div class="m">Gewicht</div><b>${s.kg} kg</b><div class="m" style="margin-top:6px">Tiefer</div><b>${s.low*5} mm</b><div class="m" style="margin-top:6px">0–100</div><b>${s.t} s</b></div></div>
-  ${[...new Set(PARTS.map(p=>p.cat))].map(c=>`<h2>${c}</h2><div class="grid">${PARTS.filter(p=>p.cat===c).map(partCard).join('')}</div>`).join('')}`;mount3d(GT==='under'?'under':'out');if(GT==='under')loadImg('#imgun',[2,1,0].filter(k=>k<=underStage()).map(k=>'img/under'+k+'.png'),null,'max-height:68vh;width:auto;max-width:100%;margin:0 auto');if(GT==='in'){const n=Math.min(3,audN());loadImg('#imgin',[3,2,1,0].filter(k=>k<=n).map(k=>'img/dash'+k+'.png').concat(['img/dash_real.jpg']))}
+  ${[...new Set(PARTS.map(p=>p.cat))].map(c=>`<h2>${c}</h2><div class="grid">${PARTS.filter(p=>p.cat===c).map(partCard).join('')}</div>`).join('')}`;if(GT==='out')mount3d('out');if(GT==='under')loadImg('#imgun',[2,1,0].filter(k=>k<=underStage()).map(k=>'img/under'+k+'.png'),null,'max-height:68vh;width:auto;max-width:100%;margin:0 auto',()=>{const m=document.querySelector('#imgun');if(m){m.className='';m.innerHTML=car();mount3dReal('under')}});if(GT==='in'){const n=Math.min(3,audN());loadImg('#imgin',[3,2,1,0].filter(k=>k<=n).map(k=>'img/dash'+k+'.png').concat(['img/dash_real.jpg']),null,null,()=>{const m=document.querySelector('#imgin');if(m){m.className='';m.innerHTML=innerSVG()}})}
 }
 function partCard(p){
   const own=has(p.id),can=okp(p);
@@ -254,11 +292,13 @@ function profile(){
   <div class="card"><div class="row sp"><span>Glückstreffer (geraten, richtig)</span><b>${S.st.lucky}</b></div><div class="row sp" style="margin-top:6px"><span>Sichere Fehler (Fehlvorstellung)</span><b>${S.st.misc}</b></div><button class="btn alt" onclick="report()">Bericht für den Fahrlehrer teilen</button></div>
   <h2>Abzeichen</h2><div class="ach">${A.map(a=>`<div class="${a[2]?'':'off'}"><span>${a[0]}<small>${a[1]}</small></span></div>`).join('')}</div>
   <h2>Einstellungen</h2>
+  <div class="card"><b>Stimme (Hörmodus)</b><div class="row" style="margin:8px 0"><select style="flex:1" onchange="S.voice=this.value;save();speak('Hallo, so klinge ich.')"><option value="">Automatisch (beste verfügbare)</option>${(loadVoices(),VOICES).map(v=>`<option value="${esc(v.name)}" ${S.voice===v.name?'selected':''}>${esc(v.name)}</option>`).join('')}</select></div><div class="m">Bessere Stimme auf dem iPhone: Einstellungen, Bedienungshilfen, Gesprochene Inhalte, Stimmen, Deutsch, dort „Anna (Verbessert)“ laden.</div></div>
   <div class="card"><b>Prüfungstermin</b><br><input type="date" value="${S.examDate||''}" onchange="S.examDate=this.value;save()" style="margin-top:8px"></div>
   <div class="card"><b>Tägliche Erinnerung</b><div class="m" style="margin:4px 0 10px">Kalendereintrag mit Alarm (iPhone und Android).</div><div class="row"><input type="time" id="rt" value="18:00"><button class="btn" style="margin:0" onclick="ics()">Eintrag laden</button></div></div>
   <div class="card"><b>Eigene Fragen importieren</b><div class="m" style="margin:4px 0 10px">JSON-Datei, bleibt nur auf diesem Gerät. Aktuell: ${(S.custom||[]).length} eigene.</div><input type="file" accept=".json" onchange="imp(this)"></div>
   <div class="card"><b>Hinweis</b><div class="m">Alle Fragen sind eigene Übungsfragen, keine amtlichen. Sie ersetzen nicht die Vorbereitung in der Fahrschule.</div></div>
-  <div class="card"><b>Technik</b><div class="m">3D-Darstellung mit three.js (MIT-Lizenz). Der Twingo ist ein eigenes, stilisiertes Modell, Renault ist eine Marke der Renault Group und nicht beteiligt. Armaturenbrett-Foto: „Renault twingo interior“ (Wikimedia Commons, gemeinfrei).</div></div>
+  <div class="card"><b>Version</b><div class="m">Fahrschule 2.0 · V${VERSION}. Änderungen stehen in CHANGELOG.md im Repository.</div></div>
+  <div class="card"><b>Technik</b><div class="m">3D-Darstellung mit three.js (MIT-Lizenz). Der Twingo ist ein eigenes, stilisiertes Modell, Renault ist eine Marke der Renault Group und nicht beteiligt. Motorsound: „Renault Twingo (2002) engine and exhaust sound“ von Sound Effects HD Indie Studios, Wikimedia Commons, CC BY 3.0, gekürzt. Armaturenbrett-Foto: „Renault twingo interior“ (Wikimedia Commons, gemeinfrei).</div></div>
   <button class="btn alt" onclick="if(confirm('Alles zurücksetzen?')){S=Object.assign({},DEF);save();go('home')}">Fortschritt zurücksetzen</button>`;
 }
 function ics(){const t=$('#rt').value.replace(':','')+'00',d=today().replace(/-/g,'');

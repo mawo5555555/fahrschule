@@ -23,4 +23,5 @@ Dann http://localhost:8791 öffnen. Auf dem Handy als App zum Homescreen hinzuf�
 - Die Fragen sind eigene Übungsfragen und ersetzen nicht die Vorbereitung in der Fahrschule. Der amtliche Fragenkatalog ist urheberrechtlich geschützt und nicht enthalten. Über „Profil → Eigene Fragen importieren“ lassen sich eigene Fragen laden (bleiben lokal).
 - Die Fahrzeug-, Unterboden- und Armaturenbrett-Bilder wurden per KI erzeugt (siehe Bildanleitung). Renault und Twingo sind Marken der Renault Group; das Projekt steht in keiner Verbindung zu Renault.
 - `img/dash_real.jpg`: „Renault twingo interior“, Wikimedia Commons, gemeinfrei.
+- `snd/motor.m4a`: Ausschnitt aus „Renault Twingo (2002) - engine and exhaust sound“ von Sound Effects HD Indie Studios (YouTube), via Wikimedia Commons, Lizenz CC BY 3.0 (https://creativecommons.org/licenses/by/3.0), gekürzt und konvertiert.
 - `vendor/three.min.js`: three.js r128, MIT-Lizenz (Copyright Three.js Authors).
