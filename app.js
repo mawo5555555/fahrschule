@@ -4,7 +4,7 @@ const DEF={st:{lucky:0,misc:0},diary:[],tts:false,pts:0,xp:0,own:[],jobs:[],days
 let S=Object.assign({},DEF);
 try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem('fs2')||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem('fs2',JSON.stringify(S))}catch(e){}};
-const VERSION='1.3';
+const VERSION='1.4';
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const vib=n=>{try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}};
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
@@ -291,6 +291,8 @@ function profile(){
   $('#app').innerHTML=`<h1>Profil</h1><div class="card"><div class="row sp"><div><div class="big" style="font-size:24px">${r.name}</div><div class="m">${S.xp} XP · ${n} Fragen sicher · ${streak()} Tage Serie</div></div></div></div>
   <div class="card"><div class="row sp"><span>Glückstreffer (geraten, richtig)</span><b>${S.st.lucky}</b></div><div class="row sp" style="margin-top:6px"><span>Sichere Fehler (Fehlvorstellung)</span><b>${S.st.misc}</b></div><button class="btn alt" onclick="report()">Bericht für den Fahrlehrer teilen</button></div>
   <h2>Abzeichen</h2><div class="ach">${A.map(a=>`<div class="${a[2]?'':'off'}"><span>${a[0]}<small>${a[1]}</small></span></div>`).join('')}</div>
+  <h2>Sicherung</h2>
+  <div class="card"><b>Fortschritt sichern</b><div class="m" style="margin:4px 0 10px">Speichert Punkte, Teile, Fragenstand und Einstellungen als Datei. Nützlich bei Handywechsel oder wenn der Browser Daten löscht.</div><button class="btn" style="margin:6px 0" onclick="backup()">Sicherung speichern</button><div class="m" style="margin:10px 0 6px">Sicherung wiederherstellen:</div><input type="file" accept=".json,application/json" onchange="restore(this)"></div>
   <h2>Einstellungen</h2>
   <div class="card"><b>Stimme (Hörmodus)</b><div class="row" style="margin:8px 0"><select style="flex:1" onchange="S.voice=this.value;save();speak('Hallo, so klinge ich.')"><option value="">Automatisch (beste verfügbare)</option>${(loadVoices(),VOICES).map(v=>`<option value="${esc(v.name)}" ${S.voice===v.name?'selected':''}>${esc(v.name)}</option>`).join('')}</select></div><div class="m">Bessere Stimme auf dem iPhone: Einstellungen, Bedienungshilfen, Gesprochene Inhalte, Stimmen, Deutsch, dort „Anna (Verbessert)“ laden.</div></div>
   <div class="card"><b>Prüfungstermin</b><br><input type="date" value="${S.examDate||''}" onchange="S.examDate=this.value;save()" style="margin-top:8px"></div>
@@ -301,6 +303,12 @@ function profile(){
   <div class="card"><b>Technik</b><div class="m">3D-Darstellung mit three.js (MIT-Lizenz). Der Twingo ist ein eigenes, stilisiertes Modell, Renault ist eine Marke der Renault Group und nicht beteiligt. Motorsound: „Renault Twingo (2002) engine and exhaust sound“ von Sound Effects HD Indie Studios, Wikimedia Commons, CC BY 3.0, gekürzt. Armaturenbrett-Foto: „Renault twingo interior“ (Wikimedia Commons, gemeinfrei).</div></div>
   <button class="btn alt" onclick="if(confirm('Alles zurücksetzen?')){S=Object.assign({},DEF);save();go('home')}">Fortschritt zurücksetzen</button>`;
 }
+function backup(){
+  const data=JSON.stringify({app:'fahrschule2',version:VERSION,date:new Date().toISOString(),state:S}),name='fahrschule-sicherung-'+today()+'.json';
+  try{const f=new File([data],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:'Fahrschule 2.0 Sicherung'}).catch(()=>{});return}}catch(e){}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove();toast('Sicherung gespeichert')}
+function restore(el){const f=el.files[0];if(!f)return;f.text().then(t=>{try{const j=JSON.parse(t);const st=j&&j.state;if(!st||j.app!=='fahrschule2'||typeof st.pts!=='number'||typeof st.ans!=='object')throw 0;
+  if(!confirm('Sicherung vom '+(j.date||'').slice(0,10)+' laden? Der aktuelle Stand auf diesem Gerät wird ersetzt.'))return;S=Object.assign({},DEF,st);save();toast('Sicherung geladen');go('home')}catch(e){toast('Ungültige Sicherungsdatei')}})}
 function ics(){const t=$('#rt').value.replace(':','')+'00',d=today().replace(/-/g,'');
   const f=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:fs2@local\r\nDTSTAMP:${d}T000000\r\nDTSTART:${d}T${t}\r\nDTEND:${d}T${t}\r\nRRULE:FREQ=DAILY\r\nSUMMARY:Twingo tunen – 10 Fragen lernen\r\nBEGIN:VALARM\r\nTRIGGER:PT0M\r\nACTION:DISPLAY\r\nDESCRIPTION:Fahrschule 2.0\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR`;
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([f],{type:'text/calendar'}));a.download='fahrschule.ics';a.click()}
