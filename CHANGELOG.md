@@ -1,6 +1,7 @@
 # Änderungen
 
-- **V1.5** Testguthaben (Profil), Look-Auswahl (Serie, Sport, Tiefer, Show) statt getrennter Felgen- und Scheibenwahl, jeder Look ändert das Bild sichtbar
+- **V1.6** Motorsound je nach Teilen sportlicher (Sport-Endschalldämpfer: tiefer und Knallen, Krümmer: rauer, Turbo: Pfeifen und Ausblasen), Tieferlegung im Look Serie sichtbar, Testguthaben entfernt
+- **V1.5** Look-Auswahl (Serie, Sport, Tiefer, Show) statt getrennter Felgen- und Scheibenwahl, jeder Look ändert das Bild sichtbar
 - **V1.4** Sicherung und Wiederherstellung des Fortschritts (Profil)
 - **V1.3** Echter Motorsound (Aufnahme eines Renault Twingo, CC BY 3.0), Versionsnummer, Hörmodus: bessere Stimme und stoppt beim Verlassen, Bremsweg-Labor mit Hindernis neu animiert, Kreuzungstraining mit Zebrastreifen, Blinkern und weicherer Fahrt, Bilder blitzen beim Laden nicht mehr auf, „Stahl“ und „Klar“ ändern das Bild
 - **V1.2** Neuer synthetischer Motorsound, Felgen- und Scheibenauswahl ändert das Bild

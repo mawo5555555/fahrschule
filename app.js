@@ -4,7 +4,7 @@ const DEF={st:{lucky:0,misc:0},diary:[],tts:false,pts:0,xp:0,own:[],jobs:[],days
 let S=Object.assign({},DEF);
 try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem('fs2')||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem('fs2',JSON.stringify(S))}catch(e){}};
-const VERSION='1.5';
+const VERSION='1.6';
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const vib=n=>{try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}};
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
@@ -64,8 +64,9 @@ function visStage(){return curLook()}
 function lookRim(){const l=curLook();return l===0?0:(l===3?3:(ownedRim()[0]||0))}
 function lookTint(){return curLook()===0?0:tintMax()}
 function setLook(l){cfg().look=l;save();garage()}
+function stageFile(n){if(n===0){if(has('fahr2'))return 'stage0_low2';if(has('fahr'))return 'stage0_low1'}return 'stage'+n}
 function mount3d(v){const m=document.querySelector('.car3d');if(!m)return;
-  if(v!=='under'){const n=visStage(),im=new Image();im.onload=()=>{if(m.isConnected){m.innerHTML='<img src="img/stage'+n+'.png" alt="Twingo" style="width:100%;display:block;border-radius:20px">'}};im.onerror=()=>mount3dReal(v);im.src='img/stage'+n+'.png';return}
+  if(v!=='under'){const n=visStage(),im=new Image();im.onload=()=>{if(m.isConnected){m.innerHTML='<img src="img/'+stageFile(n)+'.png" alt="Twingo" style="width:100%;display:block;border-radius:20px">'}};im.onerror=()=>mount3dReal(v);im.src='img/'+stageFile(n)+'.png';return}
   mount3dReal(v)}
 function mount3dReal(v){const m=document.querySelector('.car3d');if(!m||!window.Twingo3D)return;const s=stats(),c=cfg();
   try{Twingo3D.mount(m,v||'out',{rim:lookRim(),tint:lookTint(),low:Math.min(.05,s.low*.005)*0+Math.min(.05,s.low*.005),ps:s.ps,e2:has('ausp'),e1:has('kruemm'),tb:has('turbo'),ch:has('chip'),bk:has('bremse'),spin:false})}catch(e){m.innerHTML='<div class="m" style="padding:30px;text-align:center">3D-Ansicht nicht verfügbar (WebGL fehlt). Die App funktioniert sonst normal.</div>'}}
@@ -92,15 +93,26 @@ function engineGraph(A,dest,o){
   if(o.turbo){const t=t0+3;cg.gain.setValueAtTime(.35,t);cg.gain.exponentialRampToValueAtTime(.001,t+.45)}
   return {end:t0+5.4}}
 let EN={buf:null,src:null,A:null};
-function stopEngine(){try{EN.src&&EN.src.stop()}catch(e){}EN.src=null}
+function stopEngine(){try{EN.src&&EN.src.stop()}catch(e){}(EN.extra||[]).forEach(x=>{try{x.stop()}catch(e){}});EN.src=null;EN.extra=[]}
 async function revSound(){stopEngine();
   try{const A=EN.A||(EN.A=new (window.AudioContext||window.webkitAudioContext)());if(A.state==='suspended')await A.resume();
     if(!EN.buf){const ab=await fetch('snd/motor.m4a').then(r=>r.arrayBuffer());EN.buf=await new Promise((ok,no)=>A.decodeAudioData(ab,ok,no))}
-    const src=A.createBufferSource();src.buffer=EN.buf;src.playbackRate.value=1+Math.min(.1,(stats().ps-75)/450);let node=src;
-    if(has('ausp')){const ls=A.createBiquadFilter();ls.type='lowshelf';ls.frequency.value=220;ls.gain.value=5;node.connect(ls);node=ls}
-    if(has('kruemm')){const hs=A.createBiquadFilter();hs.type='highshelf';hs.frequency.value=2500;hs.gain.value=4;node.connect(hs);node=hs}
-    if(has('ausp')||has('kruemm')){const sh=A.createWaveShaper(),c=new Float32Array(512);for(let i=0;i<512;i++){const x=i/256-1;c[i]=Math.tanh(x*1.8)}sh.curve=c;node.connect(sh);node=sh}
-    const cp=A.createDynamicsCompressor();cp.threshold.value=-22;cp.ratio.value=4;const g=A.createGain();g.gain.value=2.2;node.connect(cp);cp.connect(g);g.connect(A.destination);src.start();EN.src=src;vib([60,40,120])}
+    const sp=has('ausp'),fan=has('kruemm'),chip=has('chip'),tb=has('turbo'),lv=(sp?1:0)+(fan?1:0)+(chip?1:0)+(tb?1:0);
+    const out=A.createGain();out.gain.value=2.0+lv*.25;const cp=A.createDynamicsCompressor();cp.threshold.value=-24;cp.ratio.value=5;out.connect(cp);cp.connect(A.destination);
+    const t0=A.currentTime+.05,rate=1+Math.min(.12,(stats().ps-75)/380)+(chip?.02:0);EN.extra=[];
+    const voice=(pr,g,chain)=>{const s=A.createBufferSource();s.buffer=EN.buf;s.playbackRate.value=pr;let n=s;if(chain)n=chain(s);const gg=A.createGain();gg.gain.value=g;n.connect(gg);gg.connect(out);s.start(t0);return s};
+    const shaper=(k)=>{const sh=A.createWaveShaper(),c=new Float32Array(1024);for(let i=0;i<1024;i++){const x=i/512-1;c[i]=Math.tanh(x*k)}sh.curve=c;sh.oversample='2x';return sh};
+    EN.src=voice(rate,1,s=>{let n=s;if(sp){const ls=A.createBiquadFilter();ls.type='lowshelf';ls.frequency.value=190;ls.gain.value=8;n.connect(ls);n=ls;const pk=A.createBiquadFilter();pk.type='peaking';pk.frequency.value=110;pk.gain.value=5;pk.Q.value=1.2;n.connect(pk);n=pk}
+      if(fan){const hs=A.createBiquadFilter();hs.type='highshelf';hs.frequency.value=2200;hs.gain.value=6;n.connect(hs);n=hs}
+      if(sp||fan||chip){const sh=shaper(1.4+lv*.8);n.connect(sh);n=sh}return n});
+    if(sp)EN.extra.push(voice(rate*.5,.45,s=>{const lp=A.createBiquadFilter();lp.type='lowpass';lp.frequency.value=320;s.connect(lp);return lp}));
+    if(fan||chip)EN.extra.push(voice(rate*1.5,.2,s=>{const hp=A.createBiquadFilter();hp.type='highpass';hp.frequency.value=700;s.connect(hp);const sh=shaper(3);hp.connect(sh);return sh}));
+    const nb=A.createBuffer(1,A.sampleRate,A.sampleRate),d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    const noise=(t,len,f,g,q)=>{const s=A.createBufferSource();s.buffer=nb;const bp=A.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q||1;const gg=A.createGain();gg.gain.setValueAtTime(0,t);gg.gain.linearRampToValueAtTime(g,t+.004);gg.gain.exponentialRampToValueAtTime(.001,t+len);s.connect(bp);bp.connect(gg);gg.connect(out);s.start(t,Math.random()*.5);s.stop(t+len+.05);EN.extra.push(s)};
+    if(sp||fan){[[8.6,9.4],[13.3,14.2]].forEach(([a,b])=>{const n=sp&&fan?9:6;for(let i=0;i<n;i++){const t=t0+(a+Math.random()*(b-a))/rate;noise(t,.05+Math.random()*.05,1200+Math.random()*1500,.45+Math.random()*.35,.8)}})}
+    if(tb){[8.55,13.3].forEach(a=>noise(t0+a/rate,.5,4200,.35,.6));
+      [[5.3,8.3],[9.8,13.3]].forEach(([a,b])=>{const o=A.createOscillator();o.type='sine';const g=A.createGain();o.frequency.setValueAtTime(1500,t0+a/rate);o.frequency.linearRampToValueAtTime(4300,t0+(a+(b-a)*.85)/rate);o.frequency.linearRampToValueAtTime(2200,t0+b/rate);g.gain.setValueAtTime(0,t0+a/rate);g.gain.linearRampToValueAtTime(.05,t0+(b-.4)/rate);g.gain.linearRampToValueAtTime(0,t0+(b+.3)/rate);o.connect(g);g.connect(out);o.start(t0+a/rate);o.stop(t0+(b+.4)/rate);EN.extra.push(o)})}
+    vib([60,40,120,40,200])}
   catch(e){try{const A=new (window.AudioContext||window.webkitAudioContext)();engineGraph(A,A.destination,{ps:stats().ps,sport:has('ausp'),fan:has('kruemm'),turbo:has('turbo')})}catch(e2){}}}
 function home(){
   const r=rank(),p=r.next?(S.xp-r.cur)/(r.next-r.cur):1,d=D(),s=stats();
@@ -257,7 +269,7 @@ function garage(){
   else if(GT==='under')stage=`<div class="stage"><div class="tag">Hebebühne</div><div id="imgun" class="ph ph-tall"></div></div><div class="m" style="margin:6px 4px">Auf der Hebebühne siehst du Auspuffanlage, Motor und Getriebe. Teile kaufst du unten unter Motor.</div>`;
   else stage=`<div class="stage" style="padding:12px"><div id="imgin" class="ph"></div></div><button class="btn" onclick="playBeat()">Sound testen</button>`;
   const seg=`<div class="seg" style="margin:8px 0">${[['out','Außen'],['under','Unterboden'],['in','Innenraum']].map(x=>`<button class="${GT===x[0]?'on':''}" onclick="GT='${x[0]}';garage()">${x[1]}</button>`).join('')}</div>`;
-  const pickers=GT==='out'?`<div class="card"><b>Look</b><div class="m" style="margin:2px 0 8px">Jeder Look schaltet sich durch Tuning frei und ändert das Bild.</div><div class="row" style="flex-wrap:wrap">${LOOKS.map((n,i)=>{const ok=i<=maxLook();return `<button class="chip" ${ok?`onclick="setLook(${i})"`:'disabled'} style="color:${ok?'var(--t)':'var(--m)'};${curLook()===i?'border-color:var(--g);background:rgba(124,255,74,.15)':''}${ok?'':';opacity:.5'}">${n}${ok?'':' 🔒'}</button>`}).join('')}</div><div class="m" style="margin-top:8px">${['Serie: Stahlfelgen, Originalhöhe.','Sport: Alufelgen und getönte Scheiben (Felgen oder Tönung kaufen).','Tiefer: tiefer gelegt mit Alufelgen (Gewindefahrwerk plus Felgen oder Tönung).','Show: schwarz-rote Tiefbett-Felgen, tiefer, Unterbodenlicht (Tiefbett-Felgen plus Gewindefahrwerk).'][curLook()]}</div></div>`:'';
+  const pickers=GT==='out'?`<div class="card"><b>Look</b><div class="m" style="margin:2px 0 8px">Jeder Look schaltet sich durch Tuning frei und ändert das Bild.</div><div class="row" style="flex-wrap:wrap">${LOOKS.map((n,i)=>{const ok=i<=maxLook();return `<button class="chip" ${ok?`onclick="setLook(${i})"`:'disabled'} style="color:${ok?'var(--t)':'var(--m)'};${curLook()===i?'border-color:var(--g);background:rgba(124,255,74,.15)':''}${ok?'':';opacity:.5'}">${n}${ok?'':' 🔒'}</button>`}).join('')}</div><div class="m" style="margin-top:8px">${['Serie: Stahlfelgen, mit Fahrwerk sichtbar tiefer.','Sport: Alufelgen und getönte Scheiben (Felgen oder Tönung kaufen).','Tiefer: tiefer gelegt mit Alufelgen (Gewindefahrwerk plus Felgen oder Tönung).','Show: schwarz-rote Tiefbett-Felgen, tiefer, Unterbodenlicht (Tiefbett-Felgen plus Gewindefahrwerk).'][curLook()]}</div></div>`:'';
   $('#app').innerHTML=`<div class="top"><h1 style="margin:0">Garage</h1><div class="chip">⚙ ${S.pts}</div></div>${seg}${stage}${pickers}
   <div class="card gauges">${gauge('Leistung',s.ps,140,'PS')}${gauge('Drehmoment',s.nm,150,'Nm')}<div style="align-self:center"><div class="m">Gewicht</div><b>${s.kg} kg</b><div class="m" style="margin-top:6px">Tiefer</div><b>${s.low*5} mm</b><div class="m" style="margin-top:6px">0–100</div><b>${s.t} s</b></div></div>
   ${[...new Set(PARTS.map(p=>p.cat))].map(c=>`<h2>${c}</h2><div class="grid">${PARTS.filter(p=>p.cat===c).map(partCard).join('')}</div>`).join('')}`;if(GT==='out')mount3d('out');if(GT==='under')loadImg('#imgun',[2,1,0].filter(k=>k<=underStage()).map(k=>'img/under'+k+'.png'),null,'max-height:68vh;width:auto;max-width:100%;margin:0 auto',()=>{const m=document.querySelector('#imgun');if(m){m.className='';m.innerHTML=car();mount3dReal('under')}});if(GT==='in'){const n=Math.min(3,audN());loadImg('#imgin',[3,2,1,0].filter(k=>k<=n).map(k=>'img/dash'+k+'.png').concat(['img/dash_real.jpg']),null,null,()=>{const m=document.querySelector('#imgin');if(m){m.className='';m.innerHTML=innerSVG()}})}
@@ -280,7 +292,7 @@ const JOBS=[
 let W=null;
 function werk(){
   if(W)return job();const n=Object.values(S.ans).filter(v=>v===1).length;
-  $('#app').innerHTML=`<h1>Werkstatt</h1><div class="m">Aufträge in der richtigen Reihenfolge lösen, dafür gibt es neue Teile. Sicher gelöste Fragen: ${n}</div>`+JOBS.map(j=>{const done=S.jobs.includes(j.id),lock=n<j.need&&!S.test;return `<div class="card"><div class="row sp"><b>${j.n}</b>${done?'<span class="chip">erledigt ✓</span>':''}</div><div class="m" style="margin:4px 0 8px">${j.d}</div><div class="m">${lock?`🔒 Freigabe bei ${j.need} sicheren Fragen`:j.cost?`Kosten ${j.cost} ⚙`:'Gratis'}</div><button class="btn" ${(lock||done||(j.cost&&S.pts<j.cost))?'disabled':''} onclick="startJob('${j.id}')">${done?'Erledigt':'Auftrag starten'}</button></div>`}).join('');
+  $('#app').innerHTML=`<h1>Werkstatt</h1><div class="m">Aufträge in der richtigen Reihenfolge lösen, dafür gibt es neue Teile. Sicher gelöste Fragen: ${n}</div>`+JOBS.map(j=>{const done=S.jobs.includes(j.id),lock=n<j.need;return `<div class="card"><div class="row sp"><b>${j.n}</b>${done?'<span class="chip">erledigt ✓</span>':''}</div><div class="m" style="margin:4px 0 8px">${j.d}</div><div class="m">${lock?`🔒 Freigabe bei ${j.need} sicheren Fragen`:j.cost?`Kosten ${j.cost} ⚙`:'Gratis'}</div><button class="btn" ${(lock||done||(j.cost&&S.pts<j.cost))?'disabled':''} onclick="startJob('${j.id}')">${done?'Erledigt':'Auftrag starten'}</button></div>`}).join('');
 }
 function startJob(id){const j=JOBS.find(x=>x.id===id);if(j.cost)S.pts-=j.cost;W={j,order:j.steps.map((s,i)=>({s,i})).sort(()=>Math.random()-.5),next:0,err:0};save();job()}
 function job(){
@@ -296,7 +308,6 @@ function profile(){
   $('#app').innerHTML=`<h1>Profil</h1><div class="card"><div class="row sp"><div><div class="big" style="font-size:24px">${r.name}</div><div class="m">${S.xp} XP · ${n} Fragen sicher · ${streak()} Tage Serie</div></div></div></div>
   <div class="card"><div class="row sp"><span>Glückstreffer (geraten, richtig)</span><b>${S.st.lucky}</b></div><div class="row sp" style="margin-top:6px"><span>Sichere Fehler (Fehlvorstellung)</span><b>${S.st.misc}</b></div><button class="btn alt" onclick="report()">Bericht für den Fahrlehrer teilen</button></div>
   <h2>Abzeichen</h2><div class="ach">${A.map(a=>`<div class="${a[2]?'':'off'}"><span>${a[0]}<small>${a[1]}</small></span></div>`).join('')}</div>
-  <div class="card" style="border-color:rgba(255,176,32,.5)"><b>Testversion</b><div class="m" style="margin:4px 0 10px">Zum Ausprobieren: 5000 ⚙ Guthaben und alle Werkstatt-Aufträge freigeschaltet, ohne Fragen zu beantworten.</div><button class="btn alt" style="margin:0" onclick="testCredit()">${S.test?'Nochmal +5000 ⚙':'Testguthaben holen'}</button></div>
   <h2>Sicherung</h2>
   <div class="card"><b>Fortschritt sichern</b><div class="m" style="margin:4px 0 10px">Speichert Punkte, Teile, Fragenstand und Einstellungen als Datei. Nützlich bei Handywechsel oder wenn der Browser Daten löscht.</div><button class="btn" style="margin:6px 0" onclick="backup()">Sicherung speichern</button><div class="m" style="margin:10px 0 6px">Sicherung wiederherstellen:</div><input type="file" accept=".json,application/json" onchange="restore(this)"></div>
   <h2>Einstellungen</h2>
@@ -309,7 +320,6 @@ function profile(){
   <div class="card"><b>Technik</b><div class="m">3D-Darstellung mit three.js (MIT-Lizenz). Der Twingo ist ein eigenes, stilisiertes Modell, Renault ist eine Marke der Renault Group und nicht beteiligt. Motorsound: „Renault Twingo (2002) engine and exhaust sound“ von Sound Effects HD Indie Studios, Wikimedia Commons, CC BY 3.0, gekürzt. Armaturenbrett-Foto: „Renault twingo interior“ (Wikimedia Commons, gemeinfrei).</div></div>
   <button class="btn alt" onclick="if(confirm('Alles zurücksetzen?')){S=Object.assign({},DEF);save();go('home')}">Fortschritt zurücksetzen</button>`;
 }
-function testCredit(){S.pts+=5000;S.test=true;save();toast('+5000 ⚙, Werkstatt offen');profile()}
 function backup(){
   const data=JSON.stringify({app:'fahrschule2',version:VERSION,date:new Date().toISOString(),state:S}),name='fahrschule-sicherung-'+today()+'.json';
   try{const f=new File([data],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:'Fahrschule 2.0 Sicherung'}).catch(()=>{});return}}catch(e){}
