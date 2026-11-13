@@ -1,5 +1,6 @@
 # Änderungen
 
+- **V1.9** Fragenkatalog erweitert, Fakten gegen aktuelle Gesetzestexte geprüft (StVO, StVG) und korrigiert, App-Symbole für iPhone, Prognose erst ab 30 beantworteten Fragen, Antwortreihenfolge wird gemischt
 - **V1.8** Gefahren-Szenarien neu gezeichnet und animiert (Frage und Auflösung mit richtiger Reaktion, Warnmarkierung, Nochmal-Abspielen), Konfetti bei Serien und bestandener Prüfung, Zähl-Animation im Ergebnis
 - **V1.7** Sichtbare Tieferlegung im Look Serie wieder entfernt, Testguthaben auf 0 gesetzt
 - **V1.6** Motorsound je nach Teilen sportlicher (Sport-Endschalldämpfer: tiefer und Knallen, Krümmer: rauer, Turbo: Pfeifen und Ausblasen), Tieferlegung im Look Serie sichtbar, Testguthaben entfernt

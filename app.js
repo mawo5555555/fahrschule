@@ -5,7 +5,7 @@ let S=Object.assign({},DEF);
 try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem('fs2')||'{}'))}catch(e){}
 const save=()=>{try{localStorage.setItem('fs2',JSON.stringify(S))}catch(e){}};
 if(S.test){S.pts=0;delete S.test;save()}
-const VERSION='1.8';
+const VERSION='1.9';
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const vib=n=>{try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}};
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
@@ -120,7 +120,7 @@ function home(){
   $('#app').innerHTML=`<div class="top"><div class="logo">FAHRSCHULE <b>2.0</b> <span class="ver">V${VERSION}</span></div><div class="chips"><div class="chip">🔥 ${streak()}</div><div class="chip">⚙ ${S.pts}</div></div></div>
   <div class="stage"><div class="tag">Twingo I · Milano 1</div><div class="hud"><b>${s.ps} PS</b><span>${s.nm} Nm · ${s.t} s</span></div>${car()}</div>
   <div class="card"><div class="row sp"><b>${r.name}</b><span class="m">${S.xp} XP${r.next?' · nächster Rang: '+r.nn:''}</span></div><div class="bar" style="margin-top:10px"><i style="width:${p*100}%"></i></div></div>
-  ${(()=>{const f=forecast();return `<div class="card"><div class="row sp"><b>Prüfungs-Prognose</b><span class="big" style="font-size:26px;color:var(--g2)">${f.p} %</span></div><div class="bar" style="margin:8px 0"><i style="width:${f.p}%"></i></div><div class="m">${f.n} von ${f.tot} Fragen angefangen. Grobe Schätzung aus deinen bisherigen Antworten.</div></div>`})()}
+  ${(()=>{const f=forecast();return `<div class="card"><div class="row sp"><b>Prüfungs-Prognose</b><span class="big" style="font-size:26px;color:var(--g2)">${f.n<30?'–':f.p+' %'}</span></div><div class="bar" style="margin:8px 0"><i style="width:${f.n<30?0:f.p}%"></i></div><div class="m">${f.n<30?'Beantworte mindestens 30 Fragen, dann schätze ich deine Chance ('+f.n+' bisher).':f.n+' von '+f.tot+' Fragen angefangen. Grobe Schätzung aus deinen bisherigen Antworten.'}</div></div>`})()}
   <button class="btn" onclick="startQuiz('mix')">Weiterfahren</button>
   <div class="grid"><button class="tile" onclick="startQuiz('wrong')"><span>Fehler-Garage</span><small>${Q().filter(q=>(S.qs[q.id]||{}).w>0).length} offen</small></button><button class="tile" onclick="startQuiz('exam')"><span>Prüfung</span><small>30 Fragen · max. 10 Fehlerpunkte</small></button></div>
   <h2>Tagesmissionen</h2><div class="card" style="padding:6px 16px">${MISS.map((m,i)=>{const v=Math.min(m[1](d),m[2]);return `<div class="mission"><div class="ck ${d.done.includes(i)?'on':''}">${d.done.includes(i)?'✓':''}</div><div style="flex:1"><div style="font-size:14px;font-weight:600">${m[0]}</div><div class="bar"><i style="width:${v/m[2]*100}%"></i></div></div><span class="chip">+${m[3]} ⚙</span></div>`}).join('')}</div>`;mount3d('out');
@@ -136,10 +136,12 @@ function learn(){
 let Z=null;
 function pick(n,list){const now=Date.now(),IV=[0,1,3,7,16],w=list.map(q=>{const s=S.qs[q.id]||{};const due=s.t?(now-s.t)/864e5>=IV[Math.min(s.b||0,4)]:true;return{q,k:(s.w?3:1)*(!s.t?1.2:(due?1:.15))*(0.4+Math.random())}});return w.sort((a,b)=>b.k-a.k).slice(0,n).map(x=>x.q)}
 let LABRAF=0;
+function shuf(q){if(q.c==='Vorfahrt-Szenarien'||q.grid||q.a.length<2)return q;const idx=q.a.map((_,i)=>i).sort(()=>Math.random()-.5);return {...q,a:idx.map(i=>q.a[i]),ok:q.ok.map(k=>idx.indexOf(k))}}
 function startQuiz(mode,cat){
   let qs=Q();if(mode==='wrong')qs=qs.filter(q=>(S.qs[q.id]||{}).w>0);if(mode==='cat')qs=qs.filter(q=>q.c===cat);if(mode==='cats')qs=qs.filter(q=>cat.includes(q.c));
-  const L=mode==='exam'?qs.slice().sort(()=>Math.random()-.5).slice(0,30):pick(10,qs);
+  let L=mode==='exam'?qs.slice().sort(()=>Math.random()-.5).slice(0,30):pick(10,qs);
   if(!L.length){toast('Keine Fragen vorhanden');return}
+  L=L.map(shuf);
   Z={mode,L,i:0,sel:[],done:false,right:0,fp:0,combo:0,hist:[],conf:null,fresh:true};view='quiz';render();
 }
 function quizV(){
@@ -147,7 +149,7 @@ function quizV(){
   const q=Z.L[Z.i],multi=q.ok.length>1,ex=Z.mode==='exam';
   const opts=q.a.map((a,j)=>{let c='opt';if(Z.sel.includes(j))c+=' sel';if(Z.done){if(q.ok.includes(j))c+=' good';else if(Z.sel.includes(j))c+=' bad'}
     const body=a.startsWith('<svg')?a:esc(a);return `<button class="${c}" ${Z.done?'disabled':''} onclick="tog(${j})"><i>${'ABCD'[j]}</i><span>${body}</span></button>`}).join('');
-  $('#app').innerHTML=`<div class="top"><button class="chip" style="color:var(--t)" onclick="Z=null;go('learn')">✕</button><span class="m">${ex?'Prüfung · ':''}${q.c}</span><span class="row" style="gap:6px"><button class="chip" style="color:${S.tts?'var(--g)':'var(--t)'}" onclick="S.tts=!S.tts;save();S.tts?readQ():speechSynthesis.cancel();quizV()">🔊</button><span class="chip">🔥 ${Z.combo}</span></span></div>
+  $('#app').innerHTML=`<div class="top"><button class="chip" aria-label="Beenden" style="color:var(--t)" onclick="Z=null;go('learn')">✕</button><span class="m">${ex?'Prüfung · ':''}${q.c}</span><span class="row" style="gap:6px"><button class="chip" aria-label="Vorlesen ein oder aus" style="color:${S.tts?'var(--g)':'var(--t)'}" onclick="S.tts=!S.tts;save();S.tts?readQ():speechSynthesis.cancel();quizV()">🔊</button><span class="chip">🔥 ${Z.combo}</span></span></div>
   <div class="qhead">${Z.L.map((_,i)=>`<i class="${Z.hist[i]===1?'c':Z.hist[i]===0?'x':''} ${i===Z.i?'d':''}"></i>`).join('')}</div>
   ${q.img?`<div class="qimg" style="${(q.c==='Vorfahrt-Szenarien'||q.c==='Gefahren-Szenarien')?'max-width:300px':'max-width:150px'}">${q.img}</div>`:''}
   <h1 style="font-size:19px;line-height:1.3;font-weight:700">${esc(q.q)}</h1><div class="m">${multi?'Mehrere Antworten richtig':'Eine Antwort richtig'} · ${q.pt||3} Fehlerpunkte</div>

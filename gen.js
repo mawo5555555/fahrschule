@@ -31,6 +31,14 @@ const SIGNS=[
 const TEMPO=[30,50,60,70,80,100,120];
 SIGNS.forEach(s=>s.t=s.t||'');
 TEMPO.forEach(v=>SIGNS.push({id:'t'+v,t:'Verbot',n:'Höchstgeschwindigkeit '+v+' km/h',m:'Höchstens '+v+' km/h fahren',s:circ(txt(v,38,62))}));
+SIGNS.push(
+ {id:'andr',t:'Vorrang',n:'Andreaskreuz',m:'Schienenfahrzeuge haben Vorrang',s:`<svg viewBox="0 0 100 100"><g transform="rotate(45 50 50)"><rect x="2" y="39" width="96" height="22" rx="2" fill="#fff" stroke="${R}" stroke-width="5"/></g><g transform="rotate(-45 50 50)"><rect x="2" y="39" width="96" height="22" rx="2" fill="#fff" stroke="${R}" stroke-width="5"/></g></svg>`},
+ {id:'fuss',t:'Richtzeichen',n:'Fußgängerüberweg',m:'Hier queren Fußgänger, ihnen Vorrang geben',s:`<svg viewBox="0 0 100 100"><rect x="6" y="6" width="88" height="88" rx="8" fill="${B}" stroke="#fff" stroke-width="3"/><path d="M50 18 L84 78 H16Z" fill="#fff"/><g fill="${B}"><rect x="26" y="62" width="9" height="12"/><rect x="42" y="62" width="9" height="12"/><rect x="58" y="62" width="9" height="12"/></g><circle cx="50" cy="40" r="5" fill="#111"/><path d="M50 46 V60" stroke="#111" stroke-width="5" stroke-linecap="round"/></svg>`},
+ {id:'sack',t:'Richtzeichen',n:'Sackgasse',m:'Die Straße hat keinen Durchgang für Fahrzeuge',s:`<svg viewBox="0 0 100 100"><rect x="6" y="6" width="88" height="88" rx="8" fill="${B}" stroke="#fff" stroke-width="3"/><rect x="44" y="24" width="12" height="54" fill="#fff"/><rect x="26" y="24" width="48" height="12" fill="${R}"/></svg>`},
+ {id:'z30',t:'Verbot',n:'Tempo-30-Zone',m:'Hier gilt eine Zone mit höchstens 30 km/h',s:`<svg viewBox="0 0 100 100"><rect x="6" y="6" width="88" height="88" rx="8" fill="#fff" stroke="${R}" stroke-width="9"/>${txt('30',42,60)}${txt('ZONE',14,82)}</svg>`},
+ {id:'rad',t:'Gebot',n:'Radweg',m:'Hier ist ein Weg nur für Radfahrer',s:blue(`<g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="62" r="13"/><circle cx="68" cy="62" r="13"/><path d="M32 62 L46 40 H62 L68 62 M46 40 L52 62 H32 M58 34 H66"/></g>`)},
+ {id:'gefaelle',t:'Gefahr',n:'Gefälle',m:'Starkes Gefälle voraus',s:tri(`<path d="M24 46 L76 74 H24Z" fill="#111"/>${txt('12%',16,84,'#111')}`)}
+);
 window.SIGNS=SIGNS;
 const TYPES=['Vorrang','Verbot','Gebot','Gefahr','Richtzeichen'];
 const TYPEX={Vorrang:'Vorrang-Zeichen regeln, wer zuerst fahren darf.',Verbot:'Verbotszeichen sind meist rund mit rotem Rand.',Gebot:'Gebotszeichen sind rund und blau.',Gefahr:'Gefahrzeichen sind dreieckig mit rotem Rand.',Richtzeichen:'Richtzeichen geben Hinweise und Anweisungen (meist blau, eckig).'};
@@ -59,6 +67,9 @@ SP.forEach(v=>{
   r=rnd('ab'+v);o=opt3(Math.round(v/2),r,' m');out.push({id:'ab'+v,c:'Geschwindigkeit & Abstand',pt:3,q:'Welchen Mindestabstand solltest du bei '+v+' km/h zum Vordermann halten (Faustformel „halber Tacho“)?',...o,e:'Abstand in Metern ≈ halber Tachowert, bei '+v+' km/h also '+v/2+' m.',p:'Zwei Sekunden Abstand wären '+Math.round(v/3.6*2)+' m.'});
   r=rnd('sk'+v);o=opt3(Math.round(v/3.6),r,' m');out.push({id:'sk'+v,c:'Geschwindigkeit & Abstand',pt:2,q:'Welche Strecke legst du bei '+v+' km/h in einer Sekunde zurück?',...o,e:v+' km/h : 3,6 ≈ '+Math.round(v/3.6)+' m pro Sekunde.',p:''});
 });
+SP.forEach(v=>{const brem=Math.round(v/10*v/10),wet=brem*2,stopw=Math.round(v/10*3)+wet;
+  let r=rnd('bn'+v),o=opt3(wet,r,' m');out.push({id:'bn'+v,c:'Geschwindigkeit & Abstand',pt:4,q:'Wie lang ist der Bremsweg bei Nässe aus '+v+' km/h ungefähr (Faustwert: doppelt so lang wie trocken)?',...o,e:'Trocken '+brem+' m, bei Nässe etwa doppelt: '+wet+' m.',p:'Nasse Straße heißt: Tempo runter und mehr Abstand.'});
+  r=rnd('an'+v);o=opt3(stopw,r,' m');out.push({id:'an'+v,c:'Geschwindigkeit & Abstand',pt:4,q:'Wie lang ist der Anhalteweg bei Nässe aus '+v+' km/h ungefähr (Reaktionsweg plus doppelter Bremsweg)?',...o,e:'Reaktionsweg '+Math.round(v/10*3)+' m plus Bremsweg bei Nässe '+wet+' m = '+stopw+' m.',p:''})});
 [[30,'eine Sturzhöhe von etwa 4 m'],[50,'einem Sturz aus etwa 10 m Höhe'],[70,'einem Sturz aus etwa 19 m Höhe'],[100,'einem Sturz aus etwa 39 m Höhe']].forEach(([v,t],i)=>{
   const h=Math.round(v*v/254);const a=shuffle([h,Math.round(h/2),h*2],rnd('fall'+v));
   out.push({id:'fall'+v,c:'Geschwindigkeit & Abstand',pt:3,q:'Ein Aufprall mit '+v+' km/h entspricht etwa einem Sturz aus welcher Höhe?',a:a.map(x=>x+' m'),ok:[a.indexOf(h)],e:'Die Aufprallenergie entspricht grob v²/254 Metern Fallhöhe: bei '+v+' km/h etwa '+h+' m.',p:'Anschnallen rettet bei diesen Kräften Leben.'})});
