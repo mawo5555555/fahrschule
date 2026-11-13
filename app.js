@@ -56,16 +56,35 @@ const cfg=()=>{S.cfg=S.cfg||{rim:0,tint:0};if(S.cfg.rim&&!ownedRim().includes(S.
 const tintMax=()=>Math.max(0,...PARTS.filter(p=>p.tint&&has(p.id)).map(p=>p.tint));
 const audN=()=>PARTS.filter(p=>p.aud&&has(p.id)).length;
 const car=()=>'<div class="car3d"></div>';
-function visStage(){const s=stats(),c=cfg();const n=(c.rim?1:0)+(Math.min(c.tint||0,tintMax())>0?1:0)+(s.low>=5?1:0)+(s.ps>=95?1:0);return n>=4?3:Math.min(2,n)}
+function visStage(){const s=stats(),c=cfg(),rim=c.rim||0,tint=Math.min(c.tint||0,tintMax()),low=s.low>=5;if(rim===3&&low)return 3;if(low&&(rim>0||tint>0))return 2;if(rim>0||tint>0||low)return 1;return 0}
 function mount3d(v){const m=document.querySelector('.car3d');if(!m)return;
   if(v!=='under'){const n=visStage(),im=new Image();im.onload=()=>{if(m.isConnected){m.innerHTML='<img src="img/stage'+n+'.png" alt="Twingo" style="width:100%;display:block;border-radius:20px">'}};im.onerror=()=>mount3dReal(v);im.src='img/stage'+n+'.png';return}
   mount3dReal(v)}
 function mount3dReal(v){const m=document.querySelector('.car3d');if(!m||!window.Twingo3D)return;const s=stats(),c=cfg();
   try{Twingo3D.mount(m,v||'out',{rim:c.rim||0,tint:Math.min(c.tint||0,tintMax()),low:Math.min(.05,s.low*.005),ps:s.ps,e2:has('ausp'),e1:has('kruemm'),tb:has('turbo'),ch:has('chip'),bk:has('bremse'),spin:false})}catch(e){m.innerHTML='<div class="m" style="padding:30px;text-align:center">3D-Ansicht nicht verfügbar (WebGL fehlt). Die App funktioniert sonst normal.</div>'}}
-function revSound(){try{const A=new (window.AudioContext||window.webkitAudioContext)(),t=A.currentTime,ps=stats().ps,o=A.createOscillator(),o2=A.createOscillator(),g=A.createGain(),f=A.createBiquadFilter();o.type='sawtooth';o2.type='square';f.type='lowpass';f.frequency.value=700+ps*6;
-  [o,o2].forEach((x,i)=>{x.frequency.setValueAtTime(55*(i?.5:1),t);x.frequency.exponentialRampToValueAtTime((140+ps)*(i?.5:1),t+.7);x.frequency.exponentialRampToValueAtTime(60*(i?.5:1),t+1.4);x.connect(f);x.start();x.stop(t+1.5)});
-  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.25+(has('ausp')?.2:0)+(has('kruemm')?.15:0),t+.1);g.gain.exponentialRampToValueAtTime(.001,t+1.45);f.connect(g).connect(A.destination);vib(60)}catch(e){}}
-/* HOME */
+function engineGraph(A,dest,o){
+  const t0=A.currentTime+.03,master=A.createGain();master.gain.value=.9;
+  const comp=A.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=12;comp.ratio.value=5;master.connect(comp);comp.connect(dest);
+  const sh=A.createWaveShaper(),k=o.sport?3.2:1.9,N=1024,cv=new Float32Array(N);for(let i=0;i<N;i++){const x=i*2/N-1;cv[i]=Math.tanh(x*k)}sh.curve=cv;sh.oversample='2x';
+  const res=A.createBiquadFilter();res.type='peaking';res.frequency.value=o.sport?210:160;res.gain.value=o.sport?9:5;res.Q.value=1.3;
+  const lp=A.createBiquadFilter();lp.type='lowpass';lp.Q.value=1.8;const eg=A.createGain();eg.gain.value=0;
+  sh.connect(res);res.connect(lp);lp.connect(eg);eg.connect(master);
+  const defs=[['sawtooth',2,.6],['square',4,.32],['sawtooth',6,.2],['triangle',1,.3]];if(o.fan)defs.push(['sawtooth',8,.14],['square',10,.07]);
+  const os=defs.map(([ty,m,g])=>{const s=A.createOscillator();s.type=ty;const gg=A.createGain();gg.gain.value=g;s.connect(gg);gg.connect(sh);s.start(t0);s.stop(t0+5.6);return{s,m}});
+  const nb=A.createBuffer(1,A.sampleRate*2,A.sampleRate),d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  const ns=A.createBufferSource();ns.buffer=nb;ns.loop=true;const nbp=A.createBiquadFilter();nbp.type='bandpass';nbp.Q.value=.7;const ng=A.createGain();ng.gain.value=0;ns.connect(nbp);nbp.connect(ng);ng.connect(master);ns.start(t0);ns.stop(t0+5.6);
+  const ns2=A.createBufferSource();ns2.buffer=nb;ns2.loop=true;const hp=A.createBiquadFilter();hp.type='highpass';hp.frequency.value=900;const cg=A.createGain();cg.gain.value=0;ns2.connect(hp);hp.connect(cg);cg.connect(master);ns2.start(t0,.7);ns2.stop(t0+5.6);
+  let wh=null,wg=null;if(o.turbo){wh=A.createOscillator();wh.type='sine';wg=A.createGain();wg.gain.value=0;wh.connect(wg);wg.connect(master);wh.start(t0);wh.stop(t0+5.6)}
+  const maxR=Math.min(7200,5200+o.ps*12),P=[[0,150,'s'],[.15,240,'l'],[.3,160,'l'],[.45,245,'l'],[.6,165,'l'],[.75,250,'l'],[.92,210,'l'],[1,1250,'l'],[1.18,860,'e'],[1.7,860,'l'],[2.6,maxR,'e'],[2.65,maxR-350,'l'],[2.72,maxR,'l'],[2.79,maxR-350,'l'],[2.86,maxR,'l'],[3,maxR-200,'l'],[3.9,1050,'e'],[4.6,860,'e'],[5.2,820,'l']];
+  const E=[[0,0],[.9,0],[1,.32],[1.2,.42],[1.7,.42],[2.6,.85],[3,.78],[3.9,.5],[4.6,.42],[5.2,0]];
+  const ramp=(par,t,v,m)=>{if(m==='s')par.setValueAtTime(v,t0+t);else if(m==='e')par.exponentialRampToValueAtTime(Math.max(.0001,v),t0+t);else par.linearRampToValueAtTime(v,t0+t)};
+  P.forEach(([t,r,m])=>{const f0=r/60;os.forEach(x=>ramp(x.s.frequency,t,f0*x.m,m));ramp(lp.frequency,t,(t<1?500:380)+r*(o.sport?.6:.42),m);ramp(nbp.frequency,t,1100+r*.35,m);
+    ramp(ng.gain,t,t<1?.13:.03+r/7000*(o.sport?.15:.1),m==='e'?'l':m);if(wh){ramp(wh.frequency,t,1800+Math.max(0,r-1500)*.55,m==='e'?'l':m);ramp(wg.gain,t,t<1.7?0:Math.max(0,(r-1800)/6000)*.07,'l')}});
+  E.forEach(([t,v],i)=>{if(i===0)eg.gain.setValueAtTime(v,t0);else eg.gain.linearRampToValueAtTime(v,t0+t)});
+  if(o.sport||o.fan){for(let i=0;i<16;i++){const t=t0+3.05+Math.random()*.85,a=.18+Math.random()*.3;cg.gain.setValueAtTime(a,t);cg.gain.setValueAtTime(0,t+.025+Math.random()*.02)}}
+  if(o.turbo){const t=t0+3;cg.gain.setValueAtTime(.35,t);cg.gain.exponentialRampToValueAtTime(.001,t+.45)}
+  return {end:t0+5.4}}
+function revSound(){try{const A=new (window.AudioContext||window.webkitAudioContext)();if(A.state==='suspended')A.resume();engineGraph(A,A.destination,{ps:stats().ps,sport:has('ausp'),fan:has('kruemm'),turbo:has('turbo')});vib([80,40,120,40,200])}catch(e){}}
 function home(){
   const r=rank(),p=r.next?(S.xp-r.cur)/(r.next-r.cur):1,d=D(),s=stats();
   $('#app').innerHTML=`<div class="top"><div class="logo">FAHRSCHULE <b>2.0</b></div><div class="chips"><div class="chip">🔥 ${streak()}</div><div class="chip">⚙ ${S.pts}</div></div></div>
@@ -194,7 +213,7 @@ function garage(){
   else if(GT==='under')stage=`<div class="stage"><div class="tag">Hebebühne</div><div id="imgun">${car()}</div></div><div class="m" style="margin:6px 4px">Auf der Hebebühne siehst du Auspuffanlage, Motor und Getriebe. Teile kaufst du unten unter Motor.</div>`;
   else stage=`<div class="stage" style="padding:12px"><div id="imgin">${innerSVG()}</div></div><button class="btn" onclick="playBeat()">Sound testen</button>`;
   const seg=`<div class="seg" style="margin:8px 0">${[['out','Außen'],['under','Unterboden'],['in','Innenraum']].map(x=>`<button class="${GT===x[0]?'on':''}" onclick="GT='${x[0]}';garage()">${x[1]}</button>`).join('')}</div>`;
-  const pickers=GT==='out'?`<div class="card"><b>Felgen</b><div class="row" style="margin:8px 0;flex-wrap:wrap"><button class="chip" style="color:var(--t);${!c.rim?'border-color:var(--g)':''}" onclick="setCfg('rim',0)">Stahl</button>${rims.map(r=>`<button class="chip" style="color:var(--t);${c.rim===r?'border-color:var(--g)':''}" onclick="setCfg('rim',${r})">${PARTS.find(p=>p.rim===r).n}</button>`).join('')}</div>
+  const pickers=GT==='out'?`<div class="card"><div class="m" style="margin-bottom:6px">Bild zeigt Stufe ${visStage()+1} von 4 und ändert sich mit deiner Auswahl.</div><b>Felgen</b><div class="row" style="margin:8px 0;flex-wrap:wrap"><button class="chip" style="color:var(--t);${!c.rim?'border-color:var(--g)':''}" onclick="setCfg('rim',0)">Stahl</button>${rims.map(r=>`<button class="chip" style="color:var(--t);${c.rim===r?'border-color:var(--g)':''}" onclick="setCfg('rim',${r})">${PARTS.find(p=>p.rim===r).n}</button>`).join('')}</div>
   <b>Scheiben</b><div class="row" style="margin:8px 0"><button class="chip" style="color:var(--t);${!c.tint?'border-color:var(--g)':''}" onclick="setCfg('tint',0)">Klar</button>${[1,2,3].filter(t=>t<=tm).map(t=>`<button class="chip" style="color:var(--t);${c.tint===t?'border-color:var(--g)':''}" onclick="setCfg('tint',${t})">Stufe ${t}</button>`).join('')}</div></div>`:'';
   $('#app').innerHTML=`<div class="top"><h1 style="margin:0">Garage</h1><div class="chip">⚙ ${S.pts}</div></div>${seg}${stage}${pickers}
   <div class="card gauges">${gauge('Leistung',s.ps,140,'PS')}${gauge('Drehmoment',s.nm,150,'Nm')}<div style="align-self:center"><div class="m">Gewicht</div><b>${s.kg} kg</b><div class="m" style="margin-top:6px">Tiefer</div><b>${s.low*5} mm</b><div class="m" style="margin-top:6px">0–100</div><b>${s.t} s</b></div></div>
@@ -209,7 +228,7 @@ function partCard(p){
   const eff=[p.ps?'+'+p.ps+' PS':'',p.nm?'+'+p.nm+' Nm':'',p.low?'−'+p.low*5+' mm':''].filter(Boolean).join(' · ');
   return `<div class="part ${own?'own':''} ${can?'':'lock'}"><b>${p.n}</b><small>${p.d}</small>${eff?`<div class="eff">${eff}</div>`:''}${btn}</div>`;
 }
-function buy(id){const p=PARTS.find(x=>x.id===id);if(!okp(p))return;if(p.cost){if(S.pts<p.cost)return;S.pts-=p.cost}S.own.push(id);save();toast(p.n+' verbaut');garage()}
+function buy(id){const p=PARTS.find(x=>x.id===id);if(!okp(p))return;if(p.cost){if(S.pts<p.cost)return;S.pts-=p.cost}S.own.push(id);if(p.rim||p.tint){const c=cfg();if(p.rim)c.rim=p.rim;if(p.tint)c.tint=p.tint}save();toast(p.n+' verbaut');garage()}
 /* WERKSTATT */
 const JOBS=[
 {id:'reifen',n:'Reifenwechsel',cost:0,need:10,d:'Sommer auf Sportreifen. Reihenfolge ist wichtig.',steps:['Auto sichern: Handbremse, ersten Gang einlegen','Radmuttern am Boden eine halbe Umdrehung lösen','Wagenheber am vorgesehenen Ansatzpunkt anheben','Radmuttern ganz abschrauben, Rad abnehmen','Neues Rad aufsetzen, Muttern über Kreuz handfest','Wagen ablassen, Muttern über Kreuz mit Drehmoment anziehen','Reifendruck bei kaltem Reifen prüfen','Nach ca. 50 km Radmuttern nachziehen']},
